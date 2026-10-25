@@ -173,37 +173,121 @@
     return function () { listeners = listeners.filter(function (item) { return item !== fn; }); };
   }
 
-  function preview(index) {
+  // SVG/SMIL timelines must not run independently in either preview.
+  var PREVIEW_SKIP = NOTES + ', script, iframe, object, embed, audio, source, track, animate, animateColor, animateMotion, animateTransform, set';
+  var PREVIEW_DROP_ATTR = /^(?:on.*|srcdoc|autofocus|contenteditable)$/i;
+
+  function previewNodeAllowed(node) {
+    return node.nodeType === 3 || (node.nodeType === 1 && !node.matches(PREVIEW_SKIP));
+  }
+
+  function previewNodeTag(node) {
+    return node.nodeType === 1 && node.localName === 'video' ? 'canvas' : node.localName;
+  }
+
+  function newPreviewNode(source, targetDocument) {
+    if (source.nodeType === 3) return targetDocument.createTextNode(source.data);
+    return targetDocument.createElementNS(source.namespaceURI, previewNodeTag(source));
+  }
+
+  // Patch the inert preview in place. Replacing iframe HTML on every frame would
+  // reload fonts/images, clear canvases, and make the presenter visibly flicker.
+  // Only the audience document runs the presentation's scripts and media clock.
+  function patchPreviewNode(source, target, mediaPairs, propertyPairs) {
+    if (source.nodeType === 3) {
+      if (target.data !== source.data) target.data = source.data;
+      return;
+    }
+    var video = source.localName === 'video';
+    var canvas = source.localName === 'canvas';
+    var names = {};
+    [].forEach.call(source.attributes, function (attr) {
+      if (PREVIEW_DROP_ATTR.test(attr.name)) return;
+      if (video && /^(src|poster|autoplay|controls|loop|preload|width|height|style)$/i.test(attr.name)) return;
+      names[attr.name] = true;
+      if (target.getAttribute(attr.name) !== attr.value) {
+        if (attr.namespaceURI) target.setAttributeNS(attr.namespaceURI, attr.name, attr.value);
+        else target.setAttribute(attr.name, attr.value);
+      }
+    });
+    if (canvas || video) names['data-suv-preview-media'] = true;
+    if (video) { names.width = true; names.height = true; names.style = true; }
+    [].slice.call(target.attributes).forEach(function (attr) {
+      if (!names[attr.name]) target.removeAttribute(attr.name);
+    });
+    if (canvas || video) {
+      target.setAttribute('data-suv-preview-media', video ? 'video' : 'canvas');
+      if (video) {
+        // A canvas must retain styles selected by `video` in the source deck.
+        // Computed dimensions are unscaled slide pixels; object-fit preserves
+        // letterboxing/cropping when the video's aspect ratio differs from its box.
+        var computed = window.getComputedStyle(source);
+        for (var i = 0; i < computed.length; i++) {
+          var name = computed[i];
+          var value = computed.getPropertyValue(name);
+          if (target.style.getPropertyValue(name) !== value) target.style.setProperty(name, value);
+        }
+      }
+      mediaPairs.push({source: source, target: target, video: video});
+      return;
+    }
+    if (/^(input|textarea|select|option)$/.test(source.localName)) {
+      propertyPairs.push({source: source, target: target});
+    }
+    var position = 0;
+    [].forEach.call(source.childNodes, function (child) {
+      if (!previewNodeAllowed(child)) return;
+      var copy = target.childNodes[position];
+      if (!copy || copy.nodeType !== child.nodeType ||
+          (child.nodeType === 1 && (copy.localName !== previewNodeTag(child) || copy.namespaceURI !== child.namespaceURI))) {
+        var replacement = newPreviewNode(child, target.ownerDocument);
+        if (copy) target.replaceChild(replacement, copy);
+        else target.appendChild(replacement);
+        copy = replacement;
+      }
+      patchPreviewNode(child, copy, mediaPairs, propertyPairs);
+      position++;
+    });
+    while (target.childNodes.length > position) target.removeChild(target.lastChild);
+  }
+
+  function preview(index, live) {
     if (!Number.isInteger(index) || index < 0 || index >= slides.length) return null;
     var original = slides[index];
-    var clone = original.cloneNode(true);
-    var originals = original.querySelectorAll('canvas, video');
-    [].forEach.call(clone.querySelectorAll('canvas, video'), function (media, i) {
-      var source = originals[i];
-      var url = source.tagName === 'VIDEO' ? source.poster : '';
-      try {
-        if (source.tagName === 'CANVAS') url = source.toDataURL();
-        else if (source.readyState >= 2 && source.videoWidth) {
-          var canvas = document.createElement('canvas');
-          canvas.width = source.videoWidth; canvas.height = source.videoHeight;
-          canvas.getContext('2d').drawImage(source, 0, 0);
-          url = canvas.toDataURL();
-        }
-      } catch (e) { /* A cross-origin frame can still use its poster. */ }
-      var still = document.createElement(url ? 'img' : 'div');
-      ['class', 'style', 'width', 'height'].forEach(function (name) {
-        if (media.hasAttribute(name)) still.setAttribute(name, media.getAttribute(name));
+    var clone;
+    if (live) {
+      clone = newPreviewNode(original, document);
+      patchPreviewNode(original, clone, [], []);
+    } else {
+      clone = original.cloneNode(true);
+      var originals = original.querySelectorAll('canvas, video');
+      [].forEach.call(clone.querySelectorAll('canvas, video'), function (media, i) {
+        var source = originals[i];
+        var url = source.tagName === 'VIDEO' ? source.poster : '';
+        try {
+          if (source.tagName === 'CANVAS') url = source.toDataURL();
+          else if (source.readyState >= 2 && source.videoWidth) {
+            var canvas = document.createElement('canvas');
+            canvas.width = source.videoWidth; canvas.height = source.videoHeight;
+            canvas.getContext('2d').drawImage(source, 0, 0);
+            url = canvas.toDataURL();
+          }
+        } catch (e) { /* A cross-origin frame can still use its poster. */ }
+        var still = document.createElement(url ? 'img' : 'div');
+        ['class', 'style', 'width', 'height'].forEach(function (name) {
+          if (media.hasAttribute(name)) still.setAttribute(name, media.getAttribute(name));
+        });
+        if (url) { still.src = url; still.alt = 'Media preview'; }
+        else still.textContent = '동영상 / 애니메이션';
+        media.replaceWith(still);
       });
-      if (url) { still.src = url; still.alt = 'Media preview'; }
-      else still.textContent = '동영상 / 애니메이션';
-      media.replaceWith(still);
-    });
-    [].forEach.call(clone.querySelectorAll(NOTES + ', script, iframe, object, embed, audio'), function (el) { el.remove(); });
-    [clone].concat([].slice.call(clone.querySelectorAll('*'))).forEach(function (el) {
-      [].slice.call(el.attributes).forEach(function (attr) {
-        if (/^on/i.test(attr.name) || /^(srcdoc|autofocus|contenteditable)$/i.test(attr.name)) el.removeAttribute(attr.name);
+      [].forEach.call(clone.querySelectorAll(PREVIEW_SKIP), function (el) { el.remove(); });
+      [clone].concat([].slice.call(clone.querySelectorAll('*'))).forEach(function (el) {
+        [].slice.call(el.attributes).forEach(function (attr) {
+          if (PREVIEW_DROP_ATTR.test(attr.name)) el.removeAttribute(attr.name);
+        });
       });
-    });
+    }
     var styles = [].map.call(document.querySelectorAll('link[rel="stylesheet"], style'), function (el) {
       var copy = el.cloneNode(true);
       if (el.tagName === 'LINK') copy.href = el.href;
@@ -213,6 +297,60 @@
     if (stage) { stage = stage.cloneNode(false); stage.appendChild(clone); }
     return {html: stage ? stage.outerHTML : clone.outerHTML, styles: styles, baseURL: document.baseURI,
       width: STAGE_W, height: STAGE_H, title: titleOf(original, index)};
+  }
+
+  // Bind a script-free current-slide clone to the source's rendered canvas/video
+  // pixels and DOM. CSS/SVG changes made through DOM attributes are mirrored too;
+  // independent CSS/SMIL timelines are not started in the preview.
+  function mirrorPreview(index, target) {
+    if (!Number.isInteger(index) || !slides[index] || !target) return null;
+    var original = slides[index];
+    var dirty = true, closed = false;
+    var mediaPairs = [], propertyPairs = [];
+    var posters = new WeakMap();
+    var observer = new MutationObserver(function () { dirty = true; });
+    observer.observe(original, {subtree: true, childList: true, characterData: true, attributes: true});
+    function update() {
+      if (closed || !connected() || index !== at || !target.isConnected) return false;
+      if (dirty) {
+        dirty = false; mediaPairs = []; propertyPairs = [];
+        patchPreviewNode(original, target, mediaPairs, propertyPairs);
+      }
+      propertyPairs.forEach(function (pair) {
+        if ('value' in pair.source && pair.target.value !== pair.source.value) pair.target.value = pair.source.value;
+        if ('checked' in pair.source) pair.target.checked = pair.source.checked;
+        if ('selected' in pair.source) pair.target.selected = pair.source.selected;
+        if ('selectedIndex' in pair.source) pair.target.selectedIndex = pair.source.selectedIndex;
+      });
+      mediaPairs.forEach(function (pair) {
+        var source = pair.source, copy = pair.target;
+        var width = pair.video ? source.videoWidth : source.width;
+        var height = pair.video ? source.videoHeight : source.height;
+        var image = source;
+        if (pair.video && (source.readyState < 2 || !width)) {
+          if (!source.poster) return;
+          var poster = posters.get(source);
+          if (!poster || poster.src !== source.poster) {
+            poster = new Image(); poster.src = source.poster; posters.set(source, poster);
+          }
+          if (!poster.complete || !poster.naturalWidth) return;
+          image = poster; width = poster.naturalWidth; height = poster.naturalHeight;
+        }
+        if (!width || !height) return;
+        if (copy.width !== width) copy.width = width;
+        if (copy.height !== height) copy.height = height;
+        try {
+          var context = copy.getContext('2d');
+          context.clearRect(0, 0, width, height);
+          context.drawImage(image, 0, 0, width, height);
+        } catch (e) { /* A temporarily unavailable media frame must not stop the deck. */ }
+      });
+      return true;
+    }
+    return {update: update, close: function () {
+      if (closed) return;
+      closed = true; observer.disconnect(); mediaPairs = []; propertyPairs = [];
+    }};
   }
 
   function fit() {
@@ -389,7 +527,7 @@
   var api = {
     getState: getState, show: navigate, currentIndex: function () { return at; },
     next: function () { navigate(at + 1); }, prev: function () { navigate(at - 1); },
-    toggleBlank: toggleBlank, subscribe: subscribe, preview: preview, connected: connected,
+    toggleBlank: toggleBlank, subscribe: subscribe, preview: preview, mirrorPreview: mirrorPreview, connected: connected,
     openNotes: openPresenter,
     media: function (action) {
       if (!connected() || (action !== 'toggle' && action !== 'reset')) return;

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Real Chromium integration checks. No browser security relaxation is used."""
-import argparse,base64,json,shutil,subprocess,tempfile,time,urllib.request
+import argparse,base64,json,shutil,struct,subprocess,tempfile,time,urllib.request,zlib
 from pathlib import Path
 from chrome_driver import ChromeSession,WebSocket
 
@@ -29,6 +29,126 @@ def attach(browser,target):
 def click_text(page,text):
     found=page.evaluate('''(()=>{const b=[...document.querySelectorAll('button')].find(b=>b.textContent.includes(%s));if(!b)return false;b.click();b.blur();return true})()'''%json.dumps(text))
     assert found,'Missing button '+text
+
+def current_preview(expression):
+    """Evaluate against the inert current-slide document, not the presenter UI."""
+    return '(d=>'+expression+')(document.querySelector("#current-preview").contentDocument)'
+
+def screenshot_color_count(p,selector,path,channel):
+    """Count a primary color in the composited canvas area, not its readback buffer.
+
+    A scripting-disabled iframe can have a populated canvas backing store while
+    displaying only fallback content. PNG pixels catch that visible regression.
+    The decoder supports Chromium's ordinary 8-bit RGB/RGBA non-interlaced PNGs.
+    """
+    box=p.evaluate('''(()=>{const f=document.querySelector('#current-preview'),a=f.getBoundingClientRect(),b=f.contentDocument.querySelector(%s).getBoundingClientRect(),s=a.width/f.offsetWidth;return {left:a.left+b.left*s,top:a.top+b.top*s,right:a.left+b.right*s,bottom:a.top+b.bottom*s}})()'''%json.dumps(selector))
+    png=p.screenshot(path)
+    assert png[:8]==b'\x89PNG\r\n\x1a\n'
+    offset=8;compressed=[]
+    while offset<len(png):
+        length=struct.unpack('>I',png[offset:offset+4])[0]
+        tag=png[offset+4:offset+8];data=png[offset+8:offset+8+length]
+        if tag==b'IHDR':width,height,depth,color,compression,method,interlace=struct.unpack('>IIBBBBB',data)
+        if tag==b'IDAT':compressed.append(data)
+        offset+=12+length
+    assert depth==8 and color in (2,6) and not compression and not method and not interlace
+    channels=3 if color==2 else 4;stride=width*channels
+    raw=zlib.decompress(b''.join(compressed));previous=bytearray(stride);matches=0
+    left=max(0,int(box['left']));right=min(width,int(box['right'])+1)
+    top=max(0,int(box['top']));bottom=min(height,int(box['bottom'])+1)
+    assert right>left and bottom>top,box
+    for y in range(height):
+        start=y*(stride+1);kind=raw[start];row=bytearray(raw[start+1:start+1+stride])
+        assert kind in range(5),kind
+        if kind:
+            for i in range(stride):
+                a=row[i-channels] if i>=channels else 0;b=previous[i];c=previous[i-channels] if i>=channels else 0
+                if kind==1:predict=a
+                elif kind==2:predict=b
+                elif kind==3:predict=(a+b)//2
+                else:
+                    value=a+b-c;pa=abs(value-a);pb=abs(value-b);pc=abs(value-c)
+                    predict=a if pa<=pb and pa<=pc else b if pb<=pc else c
+                row[i]=(row[i]+predict)&255
+        if top<=y<bottom:
+            for x in range(left,right):
+                rgb=row[x*channels:x*channels+3]
+                if rgb[channel]>140 and all(rgb[channel]>rgb[i]*1.5 for i in range(3) if i!=channel):matches+=1
+        previous=row
+    return matches
+
+def live_canvas_checks(c,p,out,passed):
+    """Check pixels and changing content; a working playback button is insufficient."""
+    wait_for(p,current_preview('!!d?.querySelector("canvas#demo-animation")'))
+    source='document.querySelector("#demo-animation").toDataURL()'
+    mirrored=current_preview('d.querySelector("#demo-animation").toDataURL()')
+    initial=c.evaluate(source)
+    wait_for(p,mirrored+'==='+json.dumps(initial))
+    p.evaluate('window.initialPreviewDocument=document.querySelector("#current-preview").contentDocument')
+    p.key('p')
+    wait_for(c,source+'!=='+json.dumps(initial))
+    wait_for(p,mirrored+'!=='+json.dumps(initial))
+    p.key('p')
+    paused=c.evaluate(source)
+    wait_for(p,mirrored+'==='+json.dumps(paused))
+    time.sleep(.2)
+    assert c.evaluate(source)==paused and p.evaluate(mirrored)==paused
+    assert screenshot_color_count(p,'#demo-animation',out/'live_canvas_paused.png',2)>50,'Canvas backing store is populated but the blue dot is not visibly composited'
+    p.key('r')
+    wait_for(p,mirrored+'==='+json.dumps(initial))
+    assert c.evaluate(source)==initial
+    passed('Current preview displays moving canvas pixels and matches audience pause/reset frames')
+
+    # Real players change text, property-only input values and their DOM tree.
+    # Include a late canvas, then replace it with two canvases as scene panels do.
+    c.evaluate('''(()=>{
+      const host=document.createElement('div');host.id='live-probe';
+      document.querySelectorAll('.slide')[2].append(host);
+      host.innerHTML='<span id="live-phase" onclick="window.previewHandlerRan=true">Initial phase</span><input id="live-range" type="range" min="0" max="10" value="0"><canvas id="live-mini" width="80" height="40"></canvas><svg width="80" height="40"><circle id="live-circle" cx="10" cy="20" r="5"><animate attributeName="r" from="5" to="8" dur="2s" repeatCount="indefinite"></animate><set attributeName="opacity" to="0.5" begin="1s"></set></circle></svg><script id="live-script">window.previewScriptRan=true</script><aside class="speaker-notes" hidden>PRIVATE_LIVE_NOTE</aside>';
+      const ctx=host.querySelector('canvas').getContext('2d');ctx.fillStyle='rgb(255,0,0)';ctx.fillRect(0,0,80,40);
+      host.querySelector('#live-range').value='3';
+    })()''')
+    wait_for(p,current_preview('!!d.querySelector("#live-mini")'))
+    pixel=current_preview('[...d.querySelector("#live-mini").getContext("2d").getImageData(10,10,1,1).data].join(",")')
+    wait_for(p,pixel+'==="255,0,0,255"')
+    wait_for(p,current_preview('d.querySelector("#live-range").value==="3"'))
+    assert p.evaluate(current_preview('!d.querySelector("#live-phase").hasAttribute("onclick") && !d.querySelector("#live-script") && !d.body.textContent.includes("PRIVATE_LIVE_NOTE")'))
+    c.evaluate('''(()=>{
+      const h=document.querySelector('#live-probe');
+      h.querySelector('#live-phase').textContent='Updated phase';
+      h.querySelector('#live-phase').className='active';
+      h.querySelector('#live-range').value='7';
+      h.querySelector('#live-circle').setAttribute('cx','42');
+      const old=h.querySelector('#live-mini');
+      const replacement=document.createElement('canvas');replacement.id='live-mini';replacement.width=96;replacement.height=48;
+      old.replaceWith(replacement);
+      const ctx=replacement.getContext('2d');ctx.fillStyle='rgb(0,255,0)';ctx.fillRect(0,0,96,48);
+      const extra=document.createElement('canvas');extra.id='live-extra';extra.width=32;extra.height=32;
+      h.prepend(extra);extra.getContext('2d').fillRect(0,0,32,32);
+    })()''')
+    wait_for(p,current_preview('d.querySelector("#live-phase")?.textContent==="Updated phase" && d.querySelector("#live-phase").className==="active" && d.querySelector("#live-range").value==="7" && d.querySelector("#live-circle").getAttribute("cx")==="42"'))
+    wait_for(p,current_preview('d.querySelector("#live-mini")?.width===96 && !!d.querySelector("#live-extra")'))
+    wait_for(p,pixel+'==="0,255,0,255"')
+    # A seek can change only pixels, without a DOM mutation or playback event.
+    c.evaluate('''(()=>{const x=document.querySelector('#live-mini').getContext('2d');x.fillStyle='rgb(0,0,255)';x.fillRect(0,0,96,48)})()''')
+    wait_for(p,pixel+'==="0,0,255,255"')
+    assert p.evaluate('window.initialPreviewDocument===document.querySelector("#current-preview").contentDocument')
+    assert p.evaluate(current_preview('!d.querySelector("script,video,audio,.speaker-notes,animate,animateMotion,animateTransform,animateColor,set")'))
+    c.evaluate('document.querySelector("#live-extra").remove()')
+    wait_for(p,current_preview('!d.querySelector("#live-extra")'))
+    passed('Live preview mirrors DOM/input/SVG changes, late/replaced canvases and pixel-only seeking without reloading or executing scripts')
+
+    c.evaluate('''(()=>{let x=document.createElement('canvas');x.id='next-probe';x.width=32;x.height=32;x.getContext('2d').fillRect(0,0,32,32);document.querySelectorAll('.slide')[3].append(x);const svg=document.querySelector('#live-probe svg').cloneNode(true);svg.id='next-svg-probe';document.querySelectorAll('.slide')[3].append(svg);SUVPresent.show(1);SUVPresent.show(2)})()''')
+    next_image="document.querySelector('#next-preview').contentDocument?.querySelector('img[alt=\"Media preview\"]')"
+    wait_for(p,'!!'+next_image)
+    still=p.evaluate(next_image+'.src')
+    c.evaluate('''(()=>{const x=document.querySelector('#next-probe').getContext('2d');x.fillStyle='red';x.fillRect(0,0,32,32)})()''')
+    time.sleep(.15)
+    assert p.evaluate(next_image+'.src')==still
+    assert p.evaluate('!document.querySelector("#next-preview").contentDocument.querySelector("canvas,video,audio,script,animate,animateMotion,animateTransform,animateColor,set")')
+    c.evaluate('document.querySelector("#next-probe").remove();document.querySelector("#next-svg-probe").remove();document.querySelector("#live-probe").remove()')
+    wait_for(p,current_preview('!d.querySelector("#live-probe")'))
+    passed('Next-slide preview remains a still image while the current preview updates')
 
 def run(out,headless=True):
     out.mkdir(parents=True,exist_ok=True)
@@ -221,8 +341,16 @@ def run(out,headless=True):
         preview=c.evaluate('SUVPresent.preview(0)')
         assert 'onclick' not in state['notesHTML'] and '<script' not in state['notesHTML'] and '<img' not in state['notesHTML']
         assert 'PRIVATE_NOTE_SENTINEL' not in preview['html'] and 'speaker-notes' not in preview['html']
-        assert p.evaluate('[...document.querySelectorAll("iframe")].every(f=>f.sandbox.contains("allow-same-origin")&&!f.sandbox.contains("allow-scripts"))')
-        passed('Notes are sanitized and excluded from sandboxed slide previews')
+        assert p.evaluate('[...document.querySelectorAll("iframe")].every(f=>f.sandbox.contains("allow-same-origin")) && document.querySelector("#current-preview").sandbox.contains("allow-scripts") && !document.querySelector("#next-preview").sandbox.contains("allow-scripts")')
+        wait_for(p,current_preview('d?.readyState==="complete" && !!d.querySelector("meta[http-equiv=\\"Content-Security-Policy\\"]")'))
+        csp_result=p.evaluate(current_preview('''(()=>{
+          const policy=d.querySelector('meta[http-equiv="Content-Security-Policy"]');
+          const script=d.createElement('script');script.textContent='window.__liveScriptCanary=true';d.body.append(script);script.remove();
+          const button=d.createElement('button');button.setAttribute('onclick','window.__liveHandlerCanary=true');d.body.append(button);button.click();button.remove();
+          return {policy:policy.content,scriptRan:!!d.defaultView.__liveScriptCanary,handlerRan:!!d.defaultView.__liveHandlerCanary};
+        })()'''))
+        assert "script-src 'none'" in csp_result['policy'] and not csp_result['scriptRan'] and not csp_result['handlerRan'],csp_result
+        passed('Notes are excluded; preview CSP blocks injected scripts and handlers while current canvas rendering is enabled')
 
         # No duplicate source animation is started by the previews.
         c.evaluate('SUVPresent.show(2);window.mediaActions=[];document.addEventListener("suv:media",e=>mediaActions.push(e.detail.action))')
@@ -233,17 +361,28 @@ def run(out,headless=True):
         p.key('b');assert not c.evaluate('SUVPresent.getState().blank')
         passed('Presenter media keys and blackout control the audience only')
 
+        live_canvas_checks(c,p,out,passed)
+
         # A real HTMLVideoElement exercises play/pause/reset and slide-leave pausing.
-        c.evaluate('''(()=>{let v=document.createElement('video');v.id='test-video';v.muted=true;v.setAttribute('data-noautoplay','');let can=document.createElement('canvas');can.width=64;can.height=64;can.getContext('2d').fillRect(0,0,64,64);v.srcObject=can.captureStream(1);window.testStream=v.srcObject;document.querySelectorAll('.slide')[3].append(v);SUVPresent.show(3)})()''')
+        c.evaluate('''(()=>{let v=document.createElement('video');v.id='test-video';v.muted=true;v.setAttribute('data-noautoplay','');let can=document.createElement('canvas');can.width=64;can.height=64;let ctx=can.getContext('2d');ctx.fillStyle='rgb(255,0,0)';ctx.fillRect(0,0,64,64);v.srcObject=can.captureStream(30);window.testStream=v.srcObject;window.testVideoCanvas=can;document.querySelectorAll('.slide')[3].append(v);SUVPresent.show(3)})()''')
         p.key('p');wait_for(c,'!document.querySelector("#test-video").paused')
+        video_pixel=current_preview('(()=>{const v=d.querySelector("canvas#test-video");return v&&[...v.getContext("2d").getImageData(10,10,1,1).data]})()')
+        wait_for(p,'(x=>x&&x[0]>245&&x[1]<10&&x[2]<10&&x[3]===255)('+video_pixel+')')
+        c.evaluate('''(()=>{const x=testVideoCanvas.getContext('2d');x.fillStyle='rgb(0,255,0)';x.fillRect(0,0,64,64);testStream.getVideoTracks()[0].requestFrame()})()''')
+        wait_for(c,'(()=>{const v=document.querySelector("#test-video"),a=document.createElement("canvas");a.width=a.height=64;const x=a.getContext("2d");x.drawImage(v,0,0);return x.getImageData(10,10,1,1).data[1]>245})()')
+        wait_for(p,'(x=>x&&x[0]<10&&x[1]>245&&x[2]<10&&x[3]===255)('+video_pixel+')')
+        assert p.evaluate(current_preview('!d.querySelector("video,audio,script")'))
+        assert screenshot_color_count(p,'#test-video',out/'live_video_green.png',1)>20,'Video frame exists in readback but is not visibly composited'
         p.key('p');assert c.evaluate('document.querySelector("#test-video").paused')
+        paused_video=p.evaluate(video_pixel)
+        time.sleep(.15);assert p.evaluate(video_pixel)==paused_video
         p.key('p');wait_for(c,'!document.querySelector("#test-video").paused')
         p.key('r');assert c.evaluate('document.querySelector("#test-video").paused')
         p.key('p');wait_for(c,'!document.querySelector("#test-video").paused')
         c.evaluate('SUVPresent.show(2)')
         assert c.evaluate('document.querySelector("#test-video").paused')
         c.evaluate('testStream.getTracks().forEach(t=>t.stop());document.querySelector("#test-video").remove()')
-        passed('Native video controls work and leaving a slide pauses its video')
+        passed('Native video pixels update in the inert current preview; controls and slide-leave pausing use the audience player only')
 
         # Printing while blacked out still exports all audience slides, never notes.
         c.evaluate('SUVPresent.toggleBlank()')
@@ -262,7 +401,11 @@ def run(out,headless=True):
         wait_for(c,'testNotes.document.body.innerText.includes("The blue dot now moves")')
         p=attach(c,next(t for t in targets(c) if t['id']!=original_id))
         assert c.evaluate('SUVPresent.currentIndex()')==2
-        passed('Closing and reopening notes keeps the current slide')
+        wait_for(p,current_preview('!!d?.querySelector("canvas#demo-animation")'))
+        reopened=current_preview('d.querySelector("#demo-animation").toDataURL()')
+        before=p.evaluate(reopened)
+        p.key('p');wait_for(p,reopened+'!=='+json.dumps(before));p.key('r')
+        passed('Closing and reopening notes keeps the current slide and restores live canvas mirroring')
 
         p.call('Page.reload')
         wait_for(p,'!document.querySelector("#notes")')

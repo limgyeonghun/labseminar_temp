@@ -1,6 +1,7 @@
 /* Separate presenter view. Loaded by present.js only after a user opens notes.
  * The popup starts at about:blank and inherits the opener's origin, including file://.
- * Preview frames are sandboxed still images: no slide script runs in them.
+ * Sandboxed previews run no slide scripts. The current preview mirrors source
+ * canvas/video frames and DOM; the next preview remains a still image.
  * Layout follows a slide-show presenter view: current slide left, next slide and script right.
  */
 (function () {
@@ -85,13 +86,13 @@
       '<div class="script-tools"><span class="tool-label">대본 글씨</span><button id="font-smaller" type="button" aria-label="대본 글씨 줄이기">A−</button><span id="font-size">32px</span><button id="font-larger" type="button" aria-label="대본 글씨 키우기">A＋</button>' +
       '<button id="reading-toggle" type="button" aria-pressed="false">대본 중심</button></div></header>' +
       '<p id="disconnect-message" role="alert" hidden>슬라이드 창 연결이 끊겼습니다. 슬라이드 창에서 N을 눌러 새 발표자 창을 여세요.</p>' +
-      '<main><section class="current-pane" aria-label="현재 슬라이드"><h2 class="preview-heading">현재 슬라이드 · 정지 미리보기</h2>' +
-      '<div class="preview-box"><iframe id="current-preview" title="현재 슬라이드 미리보기" sandbox="allow-same-origin" tabindex="-1"></iframe></div>' +
+      '<main><section class="current-pane" aria-label="현재 슬라이드"><h2 class="preview-heading">현재 슬라이드 · 실시간 미리보기</h2>' +
+      '<div class="preview-box"><iframe id="current-preview" title="현재 슬라이드 미리보기" sandbox="allow-same-origin allow-scripts" tabindex="-1"></iframe></div>' +
       '<p id="current-label" hidden></p><div class="slide-caption"><span id="slide-count"></span><p id="note-title"></p></div></section>' +
       '<section class="next-pane" aria-label="다음 슬라이드"><div><h2 class="preview-heading">다음 슬라이드 · 정지 미리보기</h2><p id="next-label" class="preview-label"></p></div>' +
       '<div class="preview-box"><iframe id="next-preview" title="다음 슬라이드 미리보기" sandbox="allow-same-origin" tabindex="-1"></iframe></div></section>' +
       '<section class="notes-pane" aria-label="현재 슬라이드 대본"><div id="notes" tabindex="0"></div></section>' +
-      '<p class="help">노트 창은 노트북, 슬라이드 창은 프로젝터에 둡니다. 슬라이드 창에서 F를 누르면 전체 화면이 됩니다. 영상은 청중 화면에서만 재생됩니다.</p></main>' +
+      '<p class="help">노트 창은 노트북, 슬라이드 창은 프로젝터에 둡니다. 슬라이드 창에서 F를 누르면 전체 화면이 됩니다. 현재 슬라이드의 애니메이션과 영상이 청중 화면에 맞춰 표시됩니다.</p></main>' +
       '<footer><div class="controls"><button id="prev" class="nav" type="button">← 이전</button><button id="next" class="nav" type="button">다음 →</button>' +
       '<label for="jump">장 이동</label><input id="jump" type="number" min="1" step="1" aria-label="이동할 슬라이드 번호"><span id="jump-total"></span></div>' +
       '<div class="controls"><button id="media-toggle" type="button">재생 / 일시정지 (P)</button><button id="media-reset" type="button">처음으로 (R)</button><button id="blank" type="button" aria-pressed="false">청중 화면 끄기 (B)</button></div></footer>';
@@ -108,6 +109,7 @@
     var timerRunning = false, elapsed = 0, startedAt = 0;
     var disconnected = false, destroyed = false;
     var interval, unsubscribe;
+    var liveMirror = null, liveFrame = 0, previewGeneration = 0;
 
     function timerValue() { return elapsed + (timerRunning ? win.performance.now() - startedAt : 0); }
     function paintTimer() {
@@ -121,7 +123,7 @@
     }
     function disconnect() {
       if (disconnected || destroyed) return;
-      disconnected = true; stopTimer();
+      disconnected = true; stopTimer(); stopLivePreview();
       el('connection').textContent = '슬라이드 창 연결 끊김';
       el('connection').className = 'offline';
       el('disconnect-message').hidden = false;
@@ -142,8 +144,46 @@
       frame.style.width = width + 'px'; frame.style.height = height + 'px';
       frame.style.transform = 'scale(' + (frame.parentNode.clientWidth / width) + ')';
     }
-    function renderPreview(frame, label, index) {
-      var data = api.preview(index);
+    function stopLivePreview() {
+      previewGeneration++;
+      if (liveFrame) win.cancelAnimationFrame(liveFrame);
+      liveFrame = 0;
+      if (liveMirror) liveMirror.close();
+      liveMirror = null;
+      el('current-preview').onload = null;
+    }
+    function renderPreview(frame, label, index, live) {
+      if (live) stopLivePreview();
+      var generation = previewGeneration;
+      var data = api.preview(index, !!live);
+      if (live && data && api.mirrorPreview) {
+        frame.onload = function () {
+          if (destroyed || disconnected || generation !== previewGeneration || !current || current.index !== index) return;
+          var previewDocument = frame.contentDocument;
+          // A late load from the previous srcdoc must never bind the wrong slide.
+          if (!previewDocument || !previewDocument.body || previewDocument.body.getAttribute('data-suv-preview-index') !== String(index)) return;
+          var slide = previewDocument.querySelector('.slide');
+          if (!slide) return;
+          if (liveFrame) win.cancelAnimationFrame(liveFrame);
+          if (liveMirror) liveMirror.close();
+          liveMirror = api.mirrorPreview(index, slide);
+          if (!liveMirror) return;
+          liveMirror.update();
+          var last = 0;
+          function tick(now) {
+            liveFrame = 0;
+            if (destroyed || disconnected || generation !== previewGeneration || !connected()) return;
+            // Canvas pixels are copied directly, without PNG encoding, duplicate
+            // playback clocks, audio, or iframe reloads. Limit work to 30 fps.
+            if (now - last >= 1000 / 30) {
+              last = now - ((now - last) % (1000 / 30));
+              if (!liveMirror || !liveMirror.update()) { stopLivePreview(); return; }
+            }
+            liveFrame = win.requestAnimationFrame(tick);
+          }
+          liveFrame = win.requestAnimationFrame(tick);
+        };
+      }
       if (!data) {
         frame.srcdoc = '<!doctype html><html lang="ko"><body style="margin:0;height:100vh;display:flex;align-items:center;justify-content:center;font:600 34px system-ui,sans-serif;color:#94a3b8;background:#111827">다음 슬라이드가 없습니다.</body></html>';
         frame.dataset.width = '640'; frame.dataset.height = '360';
@@ -155,7 +195,12 @@
         '.slide{position:relative!important;left:auto!important;top:auto!important;width:' + data.width + 'px!important;height:' + data.height + 'px!important;margin:0!important;transform:none!important;box-shadow:none!important}' +
         '.speaker-notes,[data-speaker-notes],.present-btn,.present-status{display:none!important}' +
         '*,*::before,*::after{animation:none!important;transition:none!important;caret-color:transparent!important}';
-      frame.srcdoc = '<!doctype html><html><head><meta charset="utf-8"><base href="' + escapeHTML(data.baseURL) + '">' + data.styles + '<style>' + reset + '</style></head><body>' + data.html + '</body></html>';
+      // Canvas displays its fallback instead of its bitmap when sandbox scripting
+      // is disabled. Enable that browser capability only for the current frame,
+      // while CSP still forbids every script/event handler, plugin and child frame.
+      // Source scripts are also removed before constructing or patching the clone.
+      var policy = "script-src 'none'; object-src 'none'; frame-src 'none'; form-action 'none'";
+      frame.srcdoc = '<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="' + escapeHTML(policy) + '"><base href="' + escapeHTML(data.baseURL) + '">' + data.styles + '<style>' + reset + '</style></head><body data-suv-preview-index="' + index + '">' + data.html + '</body></html>';
       label.textContent = data.title; sizePreview(frame);
     }
     function render(state) {
@@ -183,7 +228,7 @@
       el('blank').setAttribute('aria-pressed', String(state.blank));
       el('connection').textContent = state.blank ? '연결됨 · 청중 화면 꺼짐' : '슬라이드 창에 연결됨';
       if (changed) {
-        renderPreview(el('current-preview'), el('current-label'), state.index);
+        renderPreview(el('current-preview'), el('current-label'), state.index, true);
         renderPreview(el('next-preview'), el('next-label'), state.index + 1);
       }
     }
@@ -263,6 +308,7 @@
     function cleanup() {
       if (destroyed) return;
       destroyed = true;
+      stopLivePreview();
       win.clearInterval(interval);
       if (unsubscribe) unsubscribe();
       doc.removeEventListener('keydown', keydown);
