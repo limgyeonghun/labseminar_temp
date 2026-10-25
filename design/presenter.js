@@ -175,12 +175,19 @@
     }
     el('prev').onclick = function () { action(api.prev); };
     el('next').onclick = function () { action(api.next); };
-    el('jump').onchange = function () {
+    function jumpToSlide() {
       action(function () {
         var index = Number(el('jump').value) - 1;
         if (Number.isInteger(index) && index >= 0 && index < current.count) api.show(index);
         else el('jump').value = String(current.index + 1);
+        notes.focus({preventScroll: true});
       });
+    }
+    el('jump').onchange = jumpToSlide;
+    el('jump').onkeydown = function (event) {
+      if (event.key === 'Enter' && !event.isComposing) {
+        event.preventDefault(); event.stopPropagation(); jumpToSlide();
+      }
     };
     el('media-toggle').onclick = function () { action(function () { api.media('toggle'); }); };
     el('media-reset').onclick = function () { action(function () { api.media('reset'); }); };
@@ -211,6 +218,13 @@
       else handled = false;
       if (handled) event.preventDefault();
     }
+    function pointerControl(event) {
+      // Mouse users return to reading/navigation. Keyboard users retain button
+      // focus, so Tab and native Space/Enter activation continue to work.
+      if (event.detail > 0 && event.target.closest && event.target.closest('button') && connected()) {
+        notes.focus({preventScroll: true});
+      }
+    }
     function resize() { sizePreview(el('current-preview')); sizePreview(el('next-preview')); }
     function cleanup() {
       if (destroyed) return;
@@ -218,6 +232,7 @@
       win.clearInterval(interval);
       if (unsubscribe) unsubscribe();
       doc.removeEventListener('keydown', keydown);
+      doc.removeEventListener('click', pointerControl);
       win.removeEventListener('resize', resize);
       win.removeEventListener('pagehide', cleanup);
       win.removeEventListener('beforeunload', cleanup);
@@ -225,6 +240,7 @@
     }
     win.__SUVPresenterCleanup = cleanup;
     doc.addEventListener('keydown', keydown);
+    doc.addEventListener('click', pointerControl);
     win.addEventListener('resize', resize);
     win.addEventListener('pagehide', cleanup);
     win.addEventListener('beforeunload', cleanup);

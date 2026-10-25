@@ -30,11 +30,12 @@ def click_text(page,text):
     found=page.evaluate('''(()=>{const b=[...document.querySelectorAll('button')].find(b=>b.textContent.includes(%s));if(!b)return false;b.click();b.blur();return true})()'''%json.dumps(text))
     assert found,'Missing button '+text
 
-def run(out):
+def run(out,headless=True):
     out.mkdir(parents=True,exist_ok=True)
+    if (out/'report.json').exists():(out/'report.json').unlink()
     checks=[]
     def passed(name):checks.append(name);print('PASS '+name,flush=True)
-    with ChromeSession(width=1280,height=850) as c:
+    with ChromeSession(width=1280,height=850,headless=headless) as c:
         c.call('Network.emulateNetworkConditions',dict(offline=True,latency=0,downloadThroughput=0,uploadThroughput=0))
         c.navigate((ROOT/'examples/presenter-notes.html').as_uri())
         original_id=targets(c)[0]['id']
@@ -42,6 +43,13 @@ def run(out):
         assert c.evaluate('[...document.querySelectorAll(".speaker-notes")].every(n=>getComputedStyle(n).display==="none")')
         assert not c.evaluate('document.body.innerText.includes("Thank you for the introduction.")')
         passed('Notes stay hidden in the ordinary audience view')
+
+        c.evaluate("let field=document.createElement('input');field.id='closed-popup-input';document.body.append(field);field.focus()")
+        c.key('n')
+        assert len(targets(c))==1
+        assert c.evaluate("document.querySelector('#closed-popup-input').value")=='n'
+        c.evaluate("document.querySelector('#closed-popup-input').remove();window.scrollTo(0,0)")
+        passed('Typing N in an input does not open a presenter window')
 
         c.key('f');wait_for(c,'!!document.fullscreenElement')
         c.key('n')
@@ -56,6 +64,13 @@ def run(out):
         p.screenshot(out/'presenter.png');c.screenshot(out/'audience.png')
         passed('N opens an offline presenter window with the current script')
 
+        c.call('Page.bringToFront');c.key('Home')  # Clear the openNotes focus-click guard.
+        p.call('Page.bringToFront')
+        if headless:
+            # Headless Chrome treats both popup windows as focused. Exercise the
+            # handler explicitly here; --headed verifies native window focus.
+            c.evaluate('window.dispatchEvent(new Event("blur"))')
+        else:wait_for(c,'!document.hasFocus()')
         c.call('Page.bringToFront')
         for kind in ['mousePressed','mouseReleased']:
             c.call('Input.dispatchMouseEvent',dict(type=kind,x=800,y=600,button='left',clickCount=1))
@@ -81,6 +96,24 @@ def run(out):
         p.key('PageDown');assert c.evaluate('SUVPresent.currentIndex()')==2
         p.key('PageUp');assert c.evaluate('SUVPresent.currentIndex()')==1
         passed('Navigation synchronizes in both directions and reuses the popup')
+
+        c.evaluate('SUVPresent.show(2)')
+        point=p.evaluate("(()=>{const r=document.querySelector('#prev').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()")
+        for kind in ('mousePressed','mouseReleased'):
+            p.call('Input.dispatchMouseEvent',dict(type=kind,**point,button='left',clickCount=1))
+        assert c.evaluate('SUVPresent.currentIndex()')==1
+        assert p.evaluate('document.activeElement.id')=='notes'
+        p.key(' ');assert c.evaluate('SUVPresent.currentIndex()')==2
+        p.evaluate("document.querySelector('#jump').value='';document.querySelector('#jump').focus()")
+        p.call('Input.insertText',{'text':'2'});p.key('Enter')
+        assert c.evaluate('SUVPresent.currentIndex()')==1
+        assert p.evaluate('document.activeElement.id')=='notes'
+        p.key('PageDown');assert c.evaluate('SUVPresent.currentIndex()')==2
+        p.evaluate("document.querySelector('#prev').focus()")
+        p.key('Enter');assert c.evaluate('SUVPresent.currentIndex()')==1
+        assert p.evaluate('document.activeElement.id')=='prev'
+        p.evaluate("document.querySelector('#notes').focus()")
+        passed('Mouse controls return to notes while keyboard button activation retains focus')
 
         # Long scripts keep their reading position across status updates and slide changes.
         c.evaluate('''document.querySelectorAll('.speaker-notes')[1].insertAdjacentHTML('beforeend','<p>Long script paragraph.</p>'.repeat(20));SUVPresent.show(1)''')
@@ -176,6 +209,24 @@ def run(out):
         assert c.evaluate('SUVPresent.currentIndex()')==2
         passed('Closing and reopening notes keeps the current slide')
 
+        p.call('Page.reload')
+        wait_for(p,'!document.querySelector("#notes")')
+        p.ws.close()
+        c.key('n')
+        c.evaluate('window.testNotes=SUVPresent.openNotes();true')
+        wait_for(c,'!!testNotes.document.querySelector("#notes")')
+        p=attach(c,next(t for t in targets(c) if t['id']!=original_id))
+        wait_for(p,'document.querySelector("#notes")?.textContent.includes("The blue dot now moves")')
+        assert len(targets(c))==2
+        c.evaluate('document.querySelector("#demo-toggle").focus()')
+        c.key('PageDown');assert c.evaluate('SUVPresent.currentIndex()')==3
+        c.evaluate('SUVPresent.show(2);window.buttonMedia=[];document.addEventListener("suv:media",e=>buttonMedia.push(e.detail.action));document.querySelector("#demo-toggle").focus()')
+        c.key('p');c.key('r');assert c.evaluate('buttonMedia')==['toggle','reset']
+        c.key('b');assert c.evaluate('SUVPresent.getState().blank')
+        c.key('b');assert not c.evaluate('SUVPresent.getState().blank')
+        c.key(' ');assert c.evaluate('SUVPresent.currentIndex()')==2
+        passed('N restores a refreshed popup; focused slide buttons keep navigation and media keys')
+
         # A reload must disconnect the old UI, so it cannot control a stale document.
         c.call('Page.reload')
         wait_for(c,'typeof SUVPresent!=="undefined" && SUVPresent.getState().connected && SUVPresent.currentIndex()===0')
@@ -200,14 +251,14 @@ def run(out):
         folder=Path(temp)
         shutil.copy2(ROOT/'design/present.js',folder/'present.js')
         (folder/'deck.html').write_text('<!doctype html><meta charset="utf-8"><title>Missing companion</title><section class="slide"><h1>Test</h1></section><script src="present.js"></script>')
-        with ChromeSession(width=1280,height=850) as c:
+        with ChromeSession(width=1280,height=850,headless=headless) as c:
             c.navigate((folder/'deck.html').as_uri())
             c.evaluate('window.failedPopup=SUVPresent.openNotes();true')
             wait_for(c,'failedPopup.document.body.textContent.includes("presenter.js")')
             assert c.evaluate('failedPopup.document.body.textContent.includes("같은 폴더")')
             assert c.evaluate('SUVPresent.getState().count')==1
     passed('Missing presenter.js gives a useful recovery message')
-    with ChromeSession(width=1280,height=850) as c:
+    with ChromeSession(width=1280,height=850,headless=headless) as c:
         c.navigate((ROOT/'examples/presenter-notes.html').as_uri())
         source=targets(c)[0]['id']
         c.key('n');wait_for(c,'!!window.SUVPresenter')
@@ -219,14 +270,16 @@ def run(out):
         p.ws.close()
     passed('Closing the audience window disables the remaining presenter')
     report={'passed':len(checks),'checks':checks,'browserSecurity':'default; no allow-file-access-from-files or disable-web-security','transport':'offline file://','result':'PASS'}
+    report['focusEvidence']='synthetic blur event; use --headed for native focus' if headless else 'native window focus verified'
     (out/'report.json').write_text(json.dumps(report,ensure_ascii=False,indent=2)+'\n')
     return report
 
 if __name__=='__main__':
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output',type=Path,help='Save screenshots, PDF and report here.')
+    parser.add_argument('--headed',action='store_true',help='Open isolated visible Chrome windows to check native focus (requires a desktop).')
     args=parser.parse_args()
-    if args.output:report=run(args.output.resolve())
+    if args.output:report=run(args.output.resolve(),headless=not args.headed)
     else:
-        with tempfile.TemporaryDirectory(prefix='suvlab-test-') as temp:report=run(Path(temp))
+        with tempfile.TemporaryDirectory(prefix='suvlab-test-') as temp:report=run(Path(temp),headless=not args.headed)
     print(json.dumps(report,ensure_ascii=False,indent=2))

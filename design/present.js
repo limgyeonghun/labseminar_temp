@@ -119,7 +119,7 @@
   }
 
   function typing(el) {
-    return !!(el && (el.isContentEditable || (el.closest && el.closest('input, textarea, select, button'))));
+    return !!(el && (el.isContentEditable || (el.closest && el.closest('input, textarea, select'))));
   }
 
   function connected() {
@@ -349,13 +349,19 @@
       preserveOnFullscreenExit = true;
       document.exitFullscreen().catch(function () { preserveOnFullscreenExit = false; });
     }
-    if (popup && !popup.closed && presenterMounted) {
-      suppressFocusClick = true; popup.focus(); return popup;
+    if (popup && !popup.closed) {
+      try {
+        // Refreshing the popup clears its UI without unloading this deck.
+        if (presenterMounted && typeof popup.__SUVPresenterCleanup === 'function') {
+          suppressFocusClick = true; popup.focus(); return popup;
+        }
+      } catch (e) { /* A refreshed about:blank popup can have a new file origin. */ }
+      popup.close(); popup = null;
     }
+    presenterMounted = false;
     // Open synchronously in the click/keypress; loading first loses user activation.
     if (!popup || popup.closed) {
       popup = window.open('', '_blank', 'popup,width=1280,height=850');
-      presenterMounted = false;
     }
     if (!popup) {
       if (status) status.textContent = '발표자 창이 차단되었습니다. 팝업을 허용한 뒤 N을 다시 누르세요.';
@@ -427,8 +433,9 @@
     document.body.appendChild(status);
 
     document.addEventListener('keydown', function (ev) {
-      if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
+      if (ev.ctrlKey || ev.metaKey || ev.altKey || ev.isComposing) return;
       if (ev.key !== 'Escape' && typing(ev.target)) return;
+      if ((ev.key === ' ' || ev.key === 'Enter') && ev.target.closest && ev.target.closest('button')) return;
       if (ev.isTrusted) suppressFocusClick = false;
       if (ev.key === 'n' || ev.key === 'N') { ev.preventDefault(); openPresenter(); return; }
       if (ev.key === 'f' || ev.key === 'F') { ev.preventDefault(); startPresenting(); return; }

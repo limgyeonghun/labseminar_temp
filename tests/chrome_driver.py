@@ -52,11 +52,11 @@ class WebSocket:
         except OSError:pass
 
 class ChromeSession:
-    def __init__(self,url=None,width=1920,height=1080,timeout=45):
+    def __init__(self,url=None,width=1920,height=1080,timeout=45,headless=True):
         self.width=width;self.height=height;self.timeout=timeout;self.events=[];self.counter=0
         self.profile=Path(tempfile.mkdtemp(prefix='suvlab-browser-test-'))
         self.log=(self.profile/'chrome.log').open('wb');self.ws=None
-        self.process=subprocess.Popen([os.environ.get('CHROME_BIN','google-chrome'),'--headless=new','--disable-gpu','--no-sandbox',
+        self.process=subprocess.Popen([os.environ.get('CHROME_BIN','google-chrome')]+(['--headless=new'] if headless else [])+['--disable-gpu','--no-sandbox',
             '--disable-background-networking','--disable-component-update',
             '--disable-default-apps','--disable-extensions','--no-first-run','--no-default-browser-check',
             '--hide-scrollbars','--force-device-scale-factor=1','--remote-debugging-address=127.0.0.1',
@@ -109,7 +109,8 @@ class ChromeSession:
     def key(self,key):
         code={'ArrowRight':39,'ArrowLeft':37,'ArrowUp':38,'ArrowDown':40,'PageUp':33,'PageDown':34,'Home':36,'End':35,'Escape':27,'Enter':13,' ':32}.get(key,ord(key.upper()[0]))
         args={'key':key,'windowsVirtualKeyCode':code,'nativeVirtualKeyCode':code}
-        self.call('Input.dispatchKeyEvent',{'type':'keyDown',**args})
+        text='\r' if key=='Enter' else key if len(key)==1 else ''
+        self.call('Input.dispatchKeyEvent',{'type':'keyDown',**args,**({'text':text,'unmodifiedText':text} if text else {})})
         self.call('Input.dispatchKeyEvent',{'type':'keyUp',**args})
     def close(self):
         if self.ws:self.ws.close()
