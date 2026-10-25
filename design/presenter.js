@@ -108,7 +108,7 @@
     var scrollRatios = {};
     var timerRunning = false, elapsed = 0, startedAt = 0;
     var disconnected = false, destroyed = false;
-    var interval, unsubscribe;
+    var interval, unsubscribe, detachAnimationWindow;
     var liveMirror = null, liveFrame = 0, previewGeneration = 0;
 
     function timerValue() { return elapsed + (timerRunning ? win.performance.now() - startedAt : 0); }
@@ -309,6 +309,7 @@
       if (destroyed) return;
       destroyed = true;
       stopLivePreview();
+      if (detachAnimationWindow) detachAnimationWindow();
       win.clearInterval(interval);
       if (unsubscribe) unsubscribe();
       doc.removeEventListener('keydown', keydown);
@@ -324,6 +325,7 @@
     win.addEventListener('resize', resize);
     win.addEventListener('pagehide', cleanup);
     win.addEventListener('beforeunload', cleanup);
+    if (api.attachAnimationWindow) detachAnimationWindow = api.attachAnimationWindow(win);
     unsubscribe = api.subscribe(render);
     render(api.getState()); paintTimer();
     interval = win.setInterval(function () { if (connected()) paintTimer(); }, 250);

@@ -89,6 +89,7 @@
   var canvas = document.getElementById('demo-animation');
   var context = canvas.getContext('2d');
   var position = 0, playing = false, last = performance.now();
+  var requestFrame = SUVPresent.requestAnimationFrame;
   function draw() {
     context.clearRect(0, 0, canvas.width, canvas.height);
     context.strokeStyle = '#cbd5e1'; context.lineWidth = 8;
@@ -110,11 +111,14 @@
   document.addEventListener('suv:slidechange', function (event) {
     if (event.detail.index !== 2) playing = false;
   });
+  document.addEventListener('suv:playbackvisibility', function () {
+    if (!SUVPresent.playbackVisible()) playing = false;
+  });
   function tick(now) {
     if (playing) position = (position + Math.min(now - last, 100) / 5000) % 1;
-    last = now; draw(); requestAnimationFrame(tick);
+    last = now; draw(); requestFrame(tick);
   }
-  requestAnimationFrame(tick);
+  requestFrame(tick);
 })();
 </script>
 </body>

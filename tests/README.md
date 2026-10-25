@@ -11,6 +11,8 @@ python3 tests/test_presenter.py --output /tmp/suvlab-presenter-test
 CHROME_BIN=chromium python3 tests/test_presenter.py
 # 실제 창 포커스 전환까지 확인할 때 (데스크톱 필요, 테스트 창만 열고 닫음)
 python3 tests/test_presenter.py --headed --output /tmp/suvlab-presenter-headed
+# 노트 창만 조작할 때의 애니메이션 진행 검사 (데스크톱 필요)
+python3 tests/test_presenter_clock.py --output /tmp/suvlab-presenter-clock
 ```
 
 새 임시 브라우저 프로필에서 오프라인 `file://` 덱을 연다. 로컬 파일 접근·동일 출처
@@ -20,6 +22,13 @@ python3 tests/test_presenter.py --headed --output /tmp/suvlab-presenter-headed
 기본 headless 모드에서는 두 창이 모두 포커스를 가진 것으로 보고되어 `blur` 이벤트를
 명시적으로 보내 처리기를 확인한다. `--headed`는 실제 창을 전환하고 원본의 포커스가
 해제된 것까지 확인한다. 보고서의 `focusEvidence`에 검사 방식이 기록된다.
+
+`test_presenter_clock.py`는 실제 청중 창을 최소화하고 발표자 노트 창에 포커스를 둔다.
+노트에서 장을 넘긴 뒤 `P`를 눌러 원본의 기본 프레임 호출이 중단된 상태에서도
+공유 애니메이션 시계와 미리보기가 계속 진행하는지 검사한다. 일시정지·초기화,
+콜백 취소, 두 창 사이의 시계 전환과 재생 속도, 노트 닫기·재열기도 확인한다.
+백그라운드 제한을 해제하는 플래그나 가짜 visibility/blur 이벤트는 쓰지 않는다.
+이 검사는 창 포커스를 사용하므로 다른 headed 테스트와 동시에 실행하지 않는다.
 
 검사 범위는 발표자 보기 배치(현재·다음·대본 위치, 대본 중심/슬라이드 중심 전환),
 양방향 이동, 단축키, 빈 노트, 긴 대본의 스크롤 유지, 글씨 크기, 타이머,

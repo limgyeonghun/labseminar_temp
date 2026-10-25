@@ -127,6 +127,139 @@
     catch (e) { return false; }
   }
 
+  // Canvas animations keep their state in the audience document, but an occluded
+  // audience window may stop receiving native animation frames. Use one visible
+  // presentation window as the clock, never one independent clock per window.
+  var animationWindow = null;
+  var animationDetach = null;
+  var animationRequests = new Map();
+  var animationNextId = 1;
+  var animationFrame = null;
+  var animationGeneration = 0;
+  var lastPlaybackVisible = !document.hidden;
+  var playbackHiddenTimer = 0;
+
+  function visibleWindow(win) {
+    try { return !!win && !win.closed && !win.document.hidden; }
+    catch (e) { return false; }
+  }
+
+  function playbackVisible() {
+    return connected() && (visibleWindow(window) || visibleWindow(animationWindow));
+  }
+
+  function animationDriver() {
+    if (!connected()) return null;
+    var sourceVisible = visibleWindow(window);
+    var presenterVisible = visibleWindow(animationWindow);
+    // Prefer the window the presenter is actually using. In particular, the
+    // notes window continues driving the source while it covers the audience.
+    if (presenterVisible) {
+      try {
+        if (animationWindow.document.hasFocus() || !sourceVisible || !document.hasFocus()) return animationWindow;
+      } catch (e) { /* A closing popup falls back to the audience. */ }
+    }
+    if (sourceVisible) return window;
+    return presenterVisible ? animationWindow : null;
+  }
+
+  function cancelNativeAnimationFrame() {
+    animationGeneration++;
+    if (animationFrame) {
+      try { animationFrame.window.cancelAnimationFrame(animationFrame.id); } catch (e) { /* Closed window. */ }
+      animationFrame = null;
+    }
+  }
+
+  function scheduleAnimationFrame() {
+    var driver = animationDriver();
+    if (!driver || !animationRequests.size) { cancelNativeAnimationFrame(); return; }
+    if (animationFrame && animationFrame.window === driver) return;
+    cancelNativeAnimationFrame();
+    var generation = animationGeneration;
+    var pending = {window: driver, id: 0};
+    animationFrame = pending;
+    pending.id = driver.requestAnimationFrame(function () {
+      if (generation !== animationGeneration || animationFrame !== pending || !connected()) return;
+      animationFrame = null;
+      // Windows can have different time origins. Every callback receives the
+      // source document's clock, including after a focus/driver transfer.
+      var now = window.performance.now();
+      var batch = Array.from(animationRequests.keys());
+      batch.forEach(function (id) {
+        var callback = animationRequests.get(id);
+        if (!callback) return; // A previous callback may have cancelled this one.
+        animationRequests.delete(id);
+        try { callback(now); }
+        catch (error) {
+          // Match native rAF: one failing callback must not stop the others.
+          window.setTimeout(function () { throw error; }, 0);
+        }
+      });
+      scheduleAnimationFrame();
+    });
+  }
+
+  function refreshAnimationClock() {
+    scheduleAnimationFrame();
+    var visible = playbackVisible();
+    if (playbackHiddenTimer) { window.clearTimeout(playbackHiddenTimer); playbackHiddenTimer = 0; }
+    function notifyVisibility(value) {
+      if (value === lastPlaybackVisible) return;
+      lastPlaybackVisible = value;
+      document.dispatchEvent(new CustomEvent('suv:playbackvisibility', {detail: {visible: value}}));
+    }
+    if (visible || !connected()) notifyVisibility(visible);
+    else {
+      // Closing notes can reveal the audience one event later. Reconcile that
+      // handoff before telling a player to pause because both windows are hidden.
+      playbackHiddenTimer = window.setTimeout(function () {
+        playbackHiddenTimer = 0;
+        notifyVisibility(playbackVisible());
+      }, 150);
+    }
+  }
+
+  function requestPresentationFrame(callback) {
+    if (typeof callback !== 'function') throw new TypeError('Animation callback must be a function.');
+    var id = animationNextId++;
+    animationRequests.set(id, callback);
+    scheduleAnimationFrame();
+    return id;
+  }
+
+  function cancelPresentationFrame(id) {
+    animationRequests.delete(id);
+    if (!animationRequests.size) cancelNativeAnimationFrame();
+  }
+
+  function attachAnimationWindow(win) {
+    if (animationDetach) animationDetach();
+    var targetDocument = win.document;
+    var detached = false;
+    animationWindow = win;
+    function detach() {
+      if (detached) return;
+      detached = true;
+      win.removeEventListener('focus', refreshAnimationClock);
+      win.removeEventListener('blur', refreshAnimationClock);
+      targetDocument.removeEventListener('visibilitychange', refreshAnimationClock);
+      win.removeEventListener('pagehide', detach);
+      win.removeEventListener('beforeunload', detach);
+      if (animationWindow === win) animationWindow = null;
+      if (animationDetach === detach) animationDetach = null;
+      refreshAnimationClock();
+    }
+    animationDetach = detach;
+    win.addEventListener('focus', refreshAnimationClock);
+    win.addEventListener('blur', refreshAnimationClock);
+    targetDocument.addEventListener('visibilitychange', refreshAnimationClock);
+    win.addEventListener('pagehide', detach);
+    win.addEventListener('beforeunload', detach);
+    refreshAnimationClock();
+    return detach;
+  }
+
   function titleOf(slide, index) {
     if (!slide) return '';
     var heading = slide.querySelector('.title, .display, .part-name, h1, h2');
@@ -529,6 +662,8 @@
     next: function () { navigate(at + 1); }, prev: function () { navigate(at - 1); },
     toggleBlank: toggleBlank, subscribe: subscribe, preview: preview, mirrorPreview: mirrorPreview, connected: connected,
     openNotes: openPresenter,
+    requestAnimationFrame: requestPresentationFrame, cancelAnimationFrame: cancelPresentationFrame,
+    playbackVisible: playbackVisible, attachAnimationWindow: attachAnimationWindow,
     media: function (action) {
       if (!connected() || (action !== 'toggle' && action !== 'reset')) return;
       if (!document.body.classList.contains('presenting')) navigate(at);
@@ -612,9 +747,12 @@
     });
     window.addEventListener('blur', function () {
       if (popup && !popup.closed) suppressFocusClick = true;
+      refreshAnimationClock();
     });
-    window.addEventListener('pagehide', function () { activeDocument = false; notify(); });
-    window.addEventListener('pageshow', function () { activeDocument = true; notify(); });
+    window.addEventListener('focus', refreshAnimationClock);
+    document.addEventListener('visibilitychange', refreshAnimationClock);
+    window.addEventListener('pagehide', function () { activeDocument = false; refreshAnimationClock(); notify(); });
+    window.addEventListener('pageshow', function () { activeDocument = true; refreshAnimationClock(); notify(); });
   }
 
   if (document.readyState === 'loading') {

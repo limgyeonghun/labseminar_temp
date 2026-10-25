@@ -132,6 +132,18 @@ google-chrome --headless=new --disable-gpu --no-pdf-header-footer \
 이벤트의 `detail.action`은 `toggle` 또는 `reset`, `detail.slide`는 현재 슬라이드다.
 직접 처리할 때 `event.preventDefault()`로 기본 video 처리를 막는다.
 
+캔버스 애니메이션은 `window.requestAnimationFrame` 대신
+`SUVPresent.requestAnimationFrame(callback)`으로 다음 프레임을 요청하고,
+`SUVPresent.cancelAnimationFrame(id)`로 취소한다. 청중 창이 가려져 브라우저가
+그 창의 프레임 갱신을 멈춰도, 보이는 발표자 창이 같은 애니메이션의 갱신을 이어간다.
+콜백 시간은 항상 청중 창의 `performance.now()` 기준이며 재생 상태는 원본에만 둔다.
+
+자동 일시정지는 청중 창의 `document.hidden`만으로 판단하지 않는다.
+`SUVPresent.playbackVisible()`은 두 발표 창 중 하나라도 보이면 참이다.
+`suv:playbackvisibility` 이벤트의 `detail.visible`이 거짓일 때 일시정지하면,
+발표자 노트로 포커스를 옮길 때 재생이 멈추지 않는다. 창을 닫거나 가리는 과정의
+짧은 전환은 이 이벤트가 정리하므로 별도의 `visibilitychange` 처리와 중복하지 않는다.
+
 ```js
 document.addEventListener('suv:media', function (event) {
   if (event.detail.slide !== myAnimationSlide) return;
