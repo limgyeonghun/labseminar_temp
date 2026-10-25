@@ -125,6 +125,9 @@ google-chrome --headless=new --disable-gpu --no-pdf-header-footer \
 
 **기존 덱 적용:** 기존 HTML이 `present.js`를 읽고 있다면 새 `present.js`와
 `presenter.js`, `deck.css`를 함께 복사하고 각 장에 노트를 추가하면 된다.
+`presenter.js`는 `present.js`와 같은 폴더에 둔다. 자체 애니메이션의 창 전환 중
+재생까지 지원하려면 아래 공유 프레임 API도 연결한다. 파일 복사만으로 기존
+`requestAnimationFrame`이나 타이머 호출을 자동 변환하지는 않는다.
 별도의 `<script src="presenter.js">` 태그는 필요 없다. `build.sh`도 두 JS 파일을
 덱 옆에 배포한다. [오프라인 예제](../examples/presenter-notes.html)를 참고한다.
 
@@ -132,7 +135,8 @@ google-chrome --headless=new --disable-gpu --no-pdf-header-footer \
 이벤트의 `detail.action`은 `toggle` 또는 `reset`, `detail.slide`는 현재 슬라이드다.
 직접 처리할 때 `event.preventDefault()`로 기본 video 처리를 막는다.
 
-캔버스 애니메이션은 `window.requestAnimationFrame` 대신
+`requestAnimationFrame` 기반 스크립트 애니메이션(캔버스·SVG·숫자 등)은
+`window.requestAnimationFrame` 대신
 `SUVPresent.requestAnimationFrame(callback)`으로 다음 프레임을 요청하고,
 `SUVPresent.cancelAnimationFrame(id)`로 취소한다. 청중 창이 가려져 브라우저가
 그 창의 프레임 갱신을 멈춰도, 보이는 발표자 창이 같은 애니메이션의 갱신을 이어간다.

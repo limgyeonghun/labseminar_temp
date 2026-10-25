@@ -13,6 +13,8 @@ CHROME_BIN=chromium python3 tests/test_presenter.py
 python3 tests/test_presenter.py --headed --output /tmp/suvlab-presenter-headed
 # 노트 창만 조작할 때의 애니메이션 진행 검사 (데스크톱 필요)
 python3 tests/test_presenter_clock.py --output /tmp/suvlab-presenter-clock
+# 동영상의 표지·재생 프레임이 청중 화면과 같은지 확인
+python3 tests/test_video_poster.py --output /tmp/suvlab-video-poster
 ```
 
 새 임시 브라우저 프로필에서 오프라인 `file://` 덱을 연다. 로컬 파일 접근·동일 출처
@@ -29,6 +31,10 @@ python3 tests/test_presenter_clock.py --output /tmp/suvlab-presenter-clock
 콜백 취소, 두 창 사이의 시계 전환과 재생 속도, 노트 닫기·재열기도 확인한다.
 백그라운드 제한을 해제하는 플래그나 가짜 visibility/blur 이벤트는 쓰지 않는다.
 이 검사는 창 포커스를 사용하므로 다른 headed 테스트와 동시에 실행하지 않는다.
+
+`test_video_poster.py`는 브라우저 안에서 테스트 영상을 만들어 재생 전 표지,
+재생·일시정지·0초 초기화, 리소스 재로드 상태를 실제 화면 픽셀로 비교한다.
+별도 영상 파일이나 인코더 설치는 필요하지 않다.
 
 검사 범위는 발표자 보기 배치(현재·다음·대본 위치, 대본 중심/슬라이드 중심 전환),
 양방향 이동, 단축키, 빈 노트, 긴 대본의 스크롤 유지, 글씨 크기, 타이머,

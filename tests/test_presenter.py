@@ -34,14 +34,17 @@ def current_preview(expression):
     """Evaluate against the inert current-slide document, not the presenter UI."""
     return '(d=>'+expression+')(document.querySelector("#current-preview").contentDocument)'
 
-def screenshot_color_count(p,selector,path,channel):
+def screenshot_color_count(p,selector,path,channel,frame_id='current-preview'):
     """Count a primary color in the composited canvas area, not its readback buffer.
 
     A scripting-disabled iframe can have a populated canvas backing store while
     displaying only fallback content. PNG pixels catch that visible regression.
     The decoder supports Chromium's ordinary 8-bit RGB/RGBA non-interlaced PNGs.
     """
-    box=p.evaluate('''(()=>{const f=document.querySelector('#current-preview'),a=f.getBoundingClientRect(),b=f.contentDocument.querySelector(%s).getBoundingClientRect(),s=a.width/f.offsetWidth;return {left:a.left+b.left*s,top:a.top+b.top*s,right:a.left+b.right*s,bottom:a.top+b.bottom*s}})()'''%json.dumps(selector))
+    if frame_id is None:
+        box=p.evaluate('''(()=>{const b=document.querySelector(%s).getBoundingClientRect();return {left:b.left,top:b.top,right:b.right,bottom:b.bottom}})()'''%json.dumps(selector))
+    else:
+        box=p.evaluate('''(()=>{const f=document.getElementById(%s),a=f.getBoundingClientRect(),b=f.contentDocument.querySelector(%s).getBoundingClientRect(),s=a.width/f.offsetWidth;return {left:a.left+b.left*s,top:a.top+b.top*s,right:a.left+b.right*s,bottom:a.top+b.bottom*s}})()'''%(json.dumps(frame_id),json.dumps(selector)))
     png=p.screenshot(path)
     assert png[:8]==b'\x89PNG\r\n\x1a\n'
     offset=8;compressed=[]

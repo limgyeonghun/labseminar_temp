@@ -309,6 +309,44 @@
   // SVG/SMIL timelines must not run independently in either preview.
   var PREVIEW_SKIP = NOTES + ', script, iframe, object, embed, audio, source, track, animate, animateColor, animateMotion, animateTransform, set';
   var PREVIEW_DROP_ATTR = /^(?:on.*|srcdoc|autofocus|contenteditable)$/i;
+  var videoPreviewStates = new WeakMap();
+
+  function videoResource(source) {
+    return source.srcObject || source.currentSrc || source.src;
+  }
+
+  function videoPreviewState(source) {
+    var resource = videoResource(source);
+    var state = videoPreviewStates.get(source);
+    if (!state || state.resource !== resource) {
+      state = {resource: resource, started: false};
+      videoPreviewStates.set(source, state);
+    }
+    // A presenter may be opened after playback has already started. A decoded
+    // frame alone is insufficient: preload can finish while the poster is shown.
+    if (source.paused === false || source.seeking || source.currentTime > 0 ||
+        (source.played && source.played.length)) state.started = true;
+    return state;
+  }
+
+  function trackVideoPreviewState(event) {
+    var source = event.target;
+    if (!source || source.localName !== 'video') return;
+    if (event.type === 'emptied' || event.type === 'loadstart') {
+      videoPreviewStates.set(source, {resource: videoResource(source), started: false});
+    } else {
+      videoPreviewState(source).started = true;
+    }
+  }
+
+  function videoShowsPoster(source) {
+    return !!source.poster && !videoPreviewState(source).started;
+  }
+
+  // Capture also sees non-bubbling media events and videos added after setup.
+  ['play', 'seeking', 'emptied', 'loadstart'].forEach(function (type) {
+    document.addEventListener(type, trackVideoPreviewState, true);
+  });
 
   function previewNodeAllowed(node) {
     return node.nodeType === 3 || (node.nodeType === 1 && !node.matches(PREVIEW_SKIP));
@@ -396,10 +434,13 @@
       var originals = original.querySelectorAll('canvas, video');
       [].forEach.call(clone.querySelectorAll('canvas, video'), function (media, i) {
         var source = originals[i];
+        var showPoster = source.tagName === 'VIDEO' && videoShowsPoster(source);
+        // Retain the existing poster fallback if browser origin rules prevent
+        // a static snapshot of a decoded video frame.
         var url = source.tagName === 'VIDEO' ? source.poster : '';
         try {
           if (source.tagName === 'CANVAS') url = source.toDataURL();
-          else if (source.readyState >= 2 && source.videoWidth) {
+          else if (!showPoster && source.readyState >= 2 && source.videoWidth) {
             var canvas = document.createElement('canvas');
             canvas.width = source.videoWidth; canvas.height = source.videoHeight;
             canvas.getContext('2d').drawImage(source, 0, 0);
@@ -460,14 +501,17 @@
         var width = pair.video ? source.videoWidth : source.width;
         var height = pair.video ? source.videoHeight : source.height;
         var image = source;
-        if (pair.video && (source.readyState < 2 || !width)) {
-          if (!source.poster) return;
+        if (pair.video && videoShowsPoster(source)) {
           var poster = posters.get(source);
           if (!poster || poster.src !== source.poster) {
             poster = new Image(); poster.src = source.poster; posters.set(source, poster);
           }
           if (!poster.complete || !poster.naturalWidth) return;
           image = poster; width = poster.naturalWidth; height = poster.naturalHeight;
+        } else if (pair.video && (source.readyState < 2 || !width)) {
+          // Keep the last displayed frame during a seek/load stall after Play;
+          // returning to the poster here would flash a frame the audience lacks.
+          return;
         }
         if (!width || !height) return;
         if (copy.width !== width) copy.width = width;
