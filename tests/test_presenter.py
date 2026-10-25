@@ -64,6 +64,31 @@ def run(out,headless=True):
         p.screenshot(out/'presenter.png');c.screenshot(out/'audience.png')
         passed('N opens an offline presenter window with the current script')
 
+        box='(s=>{const b=document.querySelector(s).getBoundingClientRect();return {x:Math.round(b.x),y:Math.round(b.y),w:Math.round(b.width),h:Math.round(b.height)}})'
+        def boxes():return [p.evaluate(f'{box}({json.dumps(s)})') for s in ('.current-pane .preview-box','.next-pane .preview-box','#notes')]
+        cur,nxt,notes=boxes()
+        assert cur['w']>=.55*1280 and nxt['w']<.5*cur['w'] and nxt['x']>=cur['x']+cur['w'] and nxt['y']+nxt['h']<=notes['y']
+        assert notes['x']>=cur['x']+cur['w'] and notes['h']>=480 and p.evaluate("getComputedStyle(document.querySelector('#notes')).fontSize")=='32px'
+        assert p.evaluate('getComputedStyle(document.body).backgroundColor')=='rgb(11, 17, 32)'
+        assert p.evaluate('[...document.querySelectorAll("iframe")].every(f=>getComputedStyle(f.contentDocument.body).backgroundColor==="rgb(255, 255, 255)")')
+        toggle="(b=>b.getAttribute('aria-pressed')+' '+b.textContent)(document.querySelector('#reading-toggle'))"
+        assert p.evaluate(toggle)=='false 대본 중심'
+        point=p.evaluate("(()=>{const r=document.querySelector('#reading-toggle').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()")
+        for kind in ('mousePressed','mouseReleased'):
+            p.call('Input.dispatchMouseEvent',dict(type=kind,**point,button='left',clickCount=1))
+        assert p.evaluate(toggle)=='true 슬라이드 중심'
+        assert p.evaluate('document.activeElement.id')=='notes'
+        cur2,nxt2,notes2=boxes()
+        assert notes2['w']>=.58*1280 and notes2['h']>notes['h'] and cur2['w']<cur['w'] and nxt2['y']>=cur2['y']+cur2['h'] and nxt2['x']+nxt2['w']<=notes2['x']
+        assert p.evaluate("[...document.querySelectorAll('iframe')].every(f=>Math.abs(new DOMMatrix(f.style.transform).a*Number(f.dataset.width)-f.parentNode.clientWidth)<1)")
+        p.screenshot(out/'presenter_reading.png')
+        p.evaluate("document.querySelector('#reading-toggle').focus()");p.key('Enter')
+        assert p.evaluate(toggle)=='false 대본 중심'
+        assert p.evaluate('document.activeElement.id')=='reading-toggle' and c.evaluate('SUVPresent.currentIndex()')==0
+        assert boxes()[2]==notes
+        p.evaluate("document.querySelector('#notes').focus()")
+        passed('Presenter view: large current slide, small next slide and tall script; 대본 중심/슬라이드 중심 switch the layout')
+
         c.call('Page.bringToFront');c.key('Home')  # Clear the openNotes focus-click guard.
         p.call('Page.bringToFront')
         if headless:
@@ -115,6 +140,29 @@ def run(out,headless=True):
         p.evaluate("document.querySelector('#notes').focus()")
         passed('Mouse controls return to notes while keyboard button activation retains focus')
 
+        # A script can overflow the default panel but fit entirely in reading mode.
+        original_notes=c.evaluate("[1,2].map(i=>document.querySelectorAll('.speaker-notes')[i].innerHTML)")
+        c.evaluate("[1,2].forEach(i=>document.querySelectorAll('.speaker-notes')[i].innerHTML='<p>Reading position should survive layout changes.</p>'.repeat(6));SUVPresent.show(1)")
+        scroll="document.querySelector('#notes').scrollTop"
+        overflow="(n=>n.scrollHeight>n.clientHeight)(document.querySelector('#notes'))"
+        assert p.evaluate(overflow)
+        p.evaluate("document.querySelector('#notes').scrollTop=120")
+        saved_scroll=p.evaluate(scroll)
+        assert saved_scroll>0
+        p.evaluate("document.querySelector('#reading-toggle').click()")
+        assert not p.evaluate(overflow) and p.evaluate(scroll)==0
+        p.evaluate("document.querySelector('#reading-toggle').click()")
+        assert abs(p.evaluate(scroll)-saved_scroll)<1
+        assert c.evaluate('SUVPresent.currentIndex()')==1
+        assert p.evaluate("getComputedStyle(document.querySelector('#notes')).fontSize")=='32px'
+        # Switching slides in the wide mode must not share remembered positions.
+        p.evaluate("document.querySelector('#reading-toggle').click();document.querySelector('#next').click();document.querySelector('#reading-toggle').click()")
+        assert c.evaluate('SUVPresent.currentIndex()')==2 and p.evaluate(scroll)==0
+        p.evaluate("document.querySelector('#notes').scrollTop=60;document.querySelector('#reading-toggle').click();document.querySelector('#prev').click();document.querySelector('#reading-toggle').click()")
+        assert c.evaluate('SUVPresent.currentIndex()')==1 and abs(p.evaluate(scroll)-saved_scroll)<1
+        c.evaluate("[1,2].forEach((i,j)=>document.querySelectorAll('.speaker-notes')[i].innerHTML="+json.dumps(original_notes)+"[j]);SUVPresent.show(1)")
+        passed('Reading layout preserves per-slide scroll positions when the wider script fits without scrolling')
+
         # Long scripts keep their reading position across status updates and slide changes.
         c.evaluate('''document.querySelectorAll('.speaker-notes')[1].insertAdjacentHTML('beforeend','<p>Long script paragraph.</p>'.repeat(20));SUVPresent.show(1)''')
         p.evaluate("document.querySelector('#font-larger').click();document.querySelector('#notes').scrollTop=200")
@@ -131,8 +179,15 @@ def run(out,headless=True):
         assert p.evaluate("document.querySelector('#elapsed').textContent")==paused
         p.evaluate("document.querySelector('#timer-reset').click()")
         assert p.evaluate("document.querySelector('#elapsed').textContent")=='00:00'
+        ratio="(n=>n.scrollTop/(n.scrollHeight-n.clientHeight))(document.querySelector('#notes'))"
+        before=p.evaluate(ratio);p.evaluate("document.querySelector('#reading-toggle').click()")
+        assert before>0 and abs(p.evaluate(ratio)-before)<.05
+        p.evaluate("document.querySelector('#reading-toggle').click()")
         p.call('Emulation.setDeviceMetricsOverride',dict(width=800,height=700,deviceScaleFactor=1,mobile=False))
         assert p.evaluate("document.documentElement.scrollWidth<=innerWidth && document.querySelector('#notes').clientHeight>200")
+        assert p.evaluate("getComputedStyle(document.querySelector('#reading-toggle')).display")=='none'
+        cur3,nxt3,notes3=boxes()
+        assert notes3['w']>cur3['w'] and nxt3['y']>=cur3['y']+cur3['h']
         p.width=800;p.height=700;p.screenshot(out/'presenter_compact.png')
         p.call('Emulation.setDeviceMetricsOverride',dict(width=1280,height=850,deviceScaleFactor=1,mobile=False))
         p.width=1280;p.height=850
