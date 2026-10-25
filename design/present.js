@@ -1,4 +1,4 @@
-/* 발표 모드와 동영상 지원.
+/* 발표 모드, 발표자 노트와 동영상 지원.
  *
  * 발표: F 키 또는 오른쪽 아래 버튼으로 전체 화면. 슬라이드 하나를 화면 크기에
  * 맞춰 확대하고 나머지는 감춘다. 방향키와 스페이스로 넘기고 Esc 로 빠져나온다.
@@ -26,7 +26,10 @@
  *
  *   poster 만들기  ffmpeg -i flight.mp4 -vframes 1 flight_poster.jpg
  *
- * 조작 - F 시작, Esc 종료, 방향키/스페이스 이동, Home/End 처음과 끝, B 화면 끄기.
+ * 조작 - F 시작, N 발표자 노트, Esc 종료, 방향키/스페이스 이동,
+ *        Home/End 처음과 끝, B 화면 끄기, P 동영상 재생/정지, R 동영상 초기화.
+ * 노트 - 각 .slide 안의 <aside class="speaker-notes" hidden>에 작성한다.
+ *        presenter.js 를 이 파일과 같은 폴더에 배포한다. N으로 필요할 때만 읽는다.
  * 슬라이드를 누르면 다음 장으로 넘어가고, 동영상 재생 막대는 눌러도 넘어가지 않는다.
  */
 (function () {
@@ -34,6 +37,10 @@
 
   var STAGE_W = 1920;
   var STAGE_H = 1080;
+  var deckDocument = document;
+  var sourceURL = document.currentScript && document.currentScript.src;
+  var presenterURL = new URL('presenter.js', sourceURL || document.baseURI).href;
+  var NOTES = '.speaker-notes, [data-speaker-notes]';
 
   var CSS = [
     '.present-btn {',
@@ -45,9 +52,18 @@
     '  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12); opacity: 0.5;',
     '}',
     '.present-btn:hover { opacity: 1; }',
+    '.presenter-btn { right: 180px; }',
+    '.present-status { position: fixed; right: 24px; bottom: 88px; z-index: 30;',
+    '  max-width: 520px; background: #fff; color: #0f172a; padding: 12px 18px;',
+    '  border: 1px solid #93c5fd; border-radius: 8px; font: 18px/1.5 system-ui; }',
+    '.present-status:empty { display: none; }',
+    '.speaker-notes, [data-speaker-notes] { display: none !important; }',
     /* 한 장만 화면 크기에 맞춰 띄우고 나머지는 치운다. */
     'body.presenting { background: #000; overflow: hidden; }',
     'body.presenting .present-btn { display: none; }',
+    'body.presenting .present-status { display: none; }',
+    'body.presenting.suv-blackout::after { content: ""; position: fixed; inset: 0;',
+    '  background: #000; z-index: 99999; pointer-events: none; }',
     'body.presenting .slide { display: none; }',
     'body.presenting .slide.current {',
     '  display: flex; position: fixed; left: 50%; top: 50%;',
@@ -67,7 +83,9 @@
     '.body[data-layout="right"] > .body-media video,',
     '.body[data-layout="left"] > .body-media video { object-position: center top; }',
     '@media print {',
-    '  .present-btn { display: none !important; }',
+    '  .present-btn, .present-status { display: none !important; }',
+    '  .speaker-notes, [data-speaker-notes] { display: none !important; }',
+    '  body.presenting.suv-blackout::after { display: none !important; }',
     '  video::-webkit-media-controls, video::-webkit-media-controls-enclosure {',
     '    display: none !important; opacity: 0 !important;',
     '  }',
@@ -86,10 +104,115 @@
 
   var slides = [];
   var at = 0;
+  var listeners = [];
+  var popup = null;
+  var presenterLoaded = null;
+  var presenterMounted = false;
+  var activeDocument = true;
+  var preserveOnFullscreenExit = false;
+  var suppressFocusClick = false;
+  var status;
 
   function interactive(el) {
     if (!el || !el.closest) return false;      // document / window targets
-    return !!(el.isContentEditable || el.closest('button, a, video, audio, input, pre'));
+    return !!(el.isContentEditable || el.closest('button, a, video, audio, input, textarea, select, pre, canvas'));
+  }
+
+  function typing(el) {
+    return !!(el && (el.isContentEditable || (el.closest && el.closest('input, textarea, select, button'))));
+  }
+
+  function connected() {
+    try { return activeDocument && !window.closed && window.document === deckDocument; }
+    catch (e) { return false; }
+  }
+
+  function titleOf(slide, index) {
+    if (!slide) return '';
+    var heading = slide.querySelector('.title, .display, .part-name, h1, h2');
+    return (heading && heading.textContent.trim()) || slide.getAttribute('data-label') || 'Slide ' + (index + 1);
+  }
+
+  // Preserve simple formatting; scripts and event attributes never enter the notes pane.
+  function notesOf(slide) {
+    var source = slide && slide.querySelector(NOTES);
+    if (!source) return '';
+    var result = document.createElement('div');
+    var allowed = /^(P|BR|STRONG|B|EM|I|UL|OL|LI|CODE|PRE|SPAN)$/;
+    var discard = /^(SCRIPT|STYLE|IFRAME|OBJECT|EMBED|TEMPLATE|SVG|MATH)$/;
+    function copy(node, parent) {
+      if (node.nodeType === 3) { parent.appendChild(document.createTextNode(node.textContent)); return; }
+      if (node.nodeType !== 1 || discard.test(node.tagName)) return;
+      var target = parent;
+      if (allowed.test(node.tagName)) {
+        target = document.createElement(node.tagName.toLowerCase());
+        parent.appendChild(target);
+      }
+      [].forEach.call(node.childNodes, function (child) { copy(child, target); });
+    }
+    [].forEach.call(source.childNodes, function (node) { copy(node, result); });
+    return result.innerHTML.trim();
+  }
+
+  function getState() {
+    return {index: at, count: slides.length, title: titleOf(slides[at], at),
+      notesHTML: notesOf(slides[at]), blank: document.body.classList.contains('suv-blackout'),
+      presenting: document.body.classList.contains('presenting'), connected: connected()};
+  }
+
+  function notify() {
+    var state = getState();
+    listeners.slice().forEach(function (fn) {
+      try { fn(state); } catch (e) { /* A closed presenter must not interrupt the audience. */ }
+    });
+    document.dispatchEvent(new CustomEvent('suv:slidechange', {detail: {index: at, count: slides.length}}));
+  }
+
+  function subscribe(fn) {
+    listeners.push(fn);
+    return function () { listeners = listeners.filter(function (item) { return item !== fn; }); };
+  }
+
+  function preview(index) {
+    if (!Number.isInteger(index) || index < 0 || index >= slides.length) return null;
+    var original = slides[index];
+    var clone = original.cloneNode(true);
+    var originals = original.querySelectorAll('canvas, video');
+    [].forEach.call(clone.querySelectorAll('canvas, video'), function (media, i) {
+      var source = originals[i];
+      var url = source.tagName === 'VIDEO' ? source.poster : '';
+      try {
+        if (source.tagName === 'CANVAS') url = source.toDataURL();
+        else if (source.readyState >= 2 && source.videoWidth) {
+          var canvas = document.createElement('canvas');
+          canvas.width = source.videoWidth; canvas.height = source.videoHeight;
+          canvas.getContext('2d').drawImage(source, 0, 0);
+          url = canvas.toDataURL();
+        }
+      } catch (e) { /* A cross-origin frame can still use its poster. */ }
+      var still = document.createElement(url ? 'img' : 'div');
+      ['class', 'style', 'width', 'height'].forEach(function (name) {
+        if (media.hasAttribute(name)) still.setAttribute(name, media.getAttribute(name));
+      });
+      if (url) { still.src = url; still.alt = 'Media preview'; }
+      else still.textContent = '동영상 / 애니메이션';
+      media.replaceWith(still);
+    });
+    [].forEach.call(clone.querySelectorAll(NOTES + ', script, iframe, object, embed, audio'), function (el) { el.remove(); });
+    [clone].concat([].slice.call(clone.querySelectorAll('*'))).forEach(function (el) {
+      [].slice.call(el.attributes).forEach(function (attr) {
+        if (/^on/i.test(attr.name) || /^(srcdoc|autofocus|contenteditable)$/i.test(attr.name)) el.removeAttribute(attr.name);
+      });
+    });
+    var styles = [].map.call(document.querySelectorAll('link[rel="stylesheet"], style'), function (el) {
+      var copy = el.cloneNode(true);
+      if (el.tagName === 'LINK') copy.href = el.href;
+      return copy.outerHTML;
+    }).join('\n');
+    var stage = original.closest('deck-stage');
+    if (stage) { stage = stage.cloneNode(false); stage.appendChild(clone); }
+    return {html: stage ? stage.outerHTML : clone.outerHTML, styles: styles, baseURL: document.baseURI,
+      width: STAGE_W, height: STAGE_H, title: titleOf(original, index)};
   }
 
   function fit() {
@@ -122,10 +245,12 @@
   }
 
   function show(i) {
-    if (!slides.length) return;
-    at = Math.max(0, Math.min(slides.length - 1, i));
+    if (!slides.length || typeof i !== 'number' || !isFinite(i)) return;
+    at = Math.max(0, Math.min(slides.length - 1, Math.floor(i)));
+    var changed = !slides[at].classList.contains('current');
     slides.forEach(function (sl, n) { sl.classList.toggle('current', n === at); });
-    syncVideos(slides[at]);
+    if (changed) syncVideos(slides[at]);
+    notify();
   }
 
   function nearestSlide() {
@@ -139,13 +264,14 @@
     return best;
   }
 
-  function startPresenting() {
-    if (document.body.classList.contains('presenting')) return;
-    var from = nearestSlide();
-    document.body.classList.add('presenting');
-    show(from);
-    fit();
-    if (document.documentElement.requestFullscreen) {
+  function startPresenting(fullscreen) {
+    if (!document.body.classList.contains('presenting')) {
+      var from = nearestSlide();
+      document.body.classList.add('presenting');
+      show(from);
+      fit();
+    }
+    if (fullscreen !== false && !document.fullscreenElement && document.documentElement.requestFullscreen) {
       document.documentElement.requestFullscreen().catch(function () { /* 창 모드로 계속 */ });
     }
   }
@@ -153,11 +279,122 @@
   function stopPresenting() {
     if (!document.body.classList.contains('presenting')) return;
     document.body.classList.remove('presenting');
+    document.body.classList.remove('suv-blackout');
+    preserveOnFullscreenExit = false;
+    suppressFocusClick = false;
     slides.forEach(function (sl) { sl.classList.remove('current'); });
     syncVideos(null);
     if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen();
     slides[at].scrollIntoView();
+    notify();
   }
+
+  function toggleBlank() {
+    if (!connected()) return;
+    if (!document.body.classList.contains('presenting')) startPresenting(false);
+    document.body.classList.toggle('suv-blackout');
+    notify();
+  }
+
+  function navigate(index) {
+    if (!connected() || typeof index !== 'number' || !isFinite(index)) return;
+    if (!document.body.classList.contains('presenting')) {
+      document.body.classList.add('presenting');
+      fit();
+    }
+    show(index);
+  }
+
+  function controlMedia(action) {
+    var event = new CustomEvent('suv:media', {cancelable: true,
+      detail: {action: action, index: at, slide: slides[at]}});
+    if (!document.dispatchEvent(event)) return;
+    var videos = slides[at] ? slides[at].querySelectorAll('video') : [];
+    var pause = [].some.call(videos, function (v) { return !v.paused; });
+    [].forEach.call(videos, function (v) {
+      if (action === 'reset') {
+        v.pause();
+        try { v.currentTime = 0; } catch (e) { /* Live streams may not be seekable. */ }
+      }
+      else if (pause) v.pause();
+      else { var playing = v.play(); if (playing && playing.catch) playing.catch(function () {}); }
+    });
+  }
+
+  function loadPresenter() {
+    if (window.SUVPresenter) return Promise.resolve();
+    if (!presenterLoaded) {
+      presenterLoaded = new Promise(function (resolve, reject) {
+        var script = document.createElement('script');
+        script.src = presenterURL;
+        script.onload = function () {
+          if (window.SUVPresenter) resolve();
+          else { presenterLoaded = null; reject(new Error('발표자 화면을 불러오지 못했습니다.')); }
+        };
+        script.onerror = function () {
+          script.remove(); presenterLoaded = null;
+          reject(new Error('presenter.js를 present.js와 같은 폴더에 두고 다시 열어 주세요.'));
+        };
+        document.head.appendChild(script);
+      });
+    }
+    return presenterLoaded;
+  }
+
+  function openPresenter() {
+    if (!connected()) return null;
+    // Chrome exits native fullscreen when opening/focusing a second window. Request that
+    // exit explicitly and keep our single-slide mode for the resulting event.
+    if (document.fullscreenElement && document.exitFullscreen) {
+      preserveOnFullscreenExit = true;
+      document.exitFullscreen().catch(function () { preserveOnFullscreenExit = false; });
+    }
+    if (popup && !popup.closed && presenterMounted) {
+      suppressFocusClick = true; popup.focus(); return popup;
+    }
+    // Open synchronously in the click/keypress; loading first loses user activation.
+    if (!popup || popup.closed) {
+      popup = window.open('', '_blank', 'popup,width=1280,height=850');
+      presenterMounted = false;
+    }
+    if (!popup) {
+      if (status) status.textContent = '발표자 창이 차단되었습니다. 팝업을 허용한 뒤 N을 다시 누르세요.';
+      window.alert('발표자 창이 차단되었습니다. 팝업을 허용한 뒤 N을 다시 누르세요.');
+      return null;
+    }
+    var target = popup;
+    suppressFocusClick = true;
+    target.document.title = '발표자 노트';
+    target.document.body.textContent = '발표자 화면을 불러오는 중입니다…';
+    if (!document.body.classList.contains('presenting')) startPresenting(false);
+    loadPresenter().then(function () {
+      if (target.closed || target !== popup || presenterMounted) return;
+      window.SUVPresenter.mount(target, api);
+      presenterMounted = true;
+      if (status) status.textContent = '';
+      target.focus();
+    }).catch(function (error) {
+      if (!target.closed) target.document.body.textContent = error.message;
+      if (status) status.textContent = error.message;
+    });
+    return target;
+  }
+
+  var api = {
+    getState: getState, show: navigate, currentIndex: function () { return at; },
+    next: function () { navigate(at + 1); }, prev: function () { navigate(at - 1); },
+    toggleBlank: toggleBlank, subscribe: subscribe, preview: preview, connected: connected,
+    openNotes: openPresenter,
+    media: function (action) {
+      if (!connected() || (action !== 'toggle' && action !== 'reset')) return;
+      if (!document.body.classList.contains('presenting')) navigate(at);
+      // Canvas players listening for P/R receive the same keys as native videos.
+      document.dispatchEvent(new KeyboardEvent('keydown', {
+        key: action === 'reset' ? 'r' : 'p', bubbles: true, cancelable: true
+      }));
+    }
+  };
+  window.SUVPresent = api;
 
   var NEXT = { ' ': 1, Spacebar: 1, ArrowRight: 1, ArrowDown: 1, PageDown: 1, Enter: 1 };
   var PREV = { ArrowLeft: 1, ArrowUp: 1, PageUp: 1, Backspace: 1 };
@@ -167,30 +404,45 @@
     muteAll();
     slides = [].slice.call(document.querySelectorAll('.slide'));
     if (!slides.length) return;
+    [].forEach.call(document.querySelectorAll(NOTES), function (el) { el.hidden = true; });
 
     var btn = document.createElement('button');
     btn.className = 'present-btn';
     btn.type = 'button';
     btn.textContent = '전체 화면';
     btn.title = 'F 키로도 시작. Esc 로 종료';
-    btn.addEventListener('click', startPresenting);
+    btn.addEventListener('click', function () { btn.blur(); startPresenting(); });
     document.body.appendChild(btn);
+
+    var notesButton = document.createElement('button');
+    notesButton.className = 'present-btn presenter-btn';
+    notesButton.type = 'button';
+    notesButton.textContent = '발표자 노트';
+    notesButton.title = 'N: 별도 발표자 창 열기 (확장 화면에서 사용)';
+    notesButton.addEventListener('click', function () { notesButton.blur(); openPresenter(); });
+    document.body.appendChild(notesButton);
+    status = document.createElement('div');
+    status.className = 'present-status';
+    status.setAttribute('role', 'status');
+    document.body.appendChild(status);
 
     document.addEventListener('keydown', function (ev) {
       if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
-      if (ev.target && ev.target.isContentEditable) return;
+      if (ev.key !== 'Escape' && typing(ev.target)) return;
+      if (ev.isTrusted) suppressFocusClick = false;
+      if (ev.key === 'n' || ev.key === 'N') { ev.preventDefault(); openPresenter(); return; }
+      if (ev.key === 'f' || ev.key === 'F') { ev.preventDefault(); startPresenting(); return; }
 
       if (!document.body.classList.contains('presenting')) {
-        if (ev.key === 'f' || ev.key === 'F') { ev.preventDefault(); startPresenting(); }
         return;
       }
       if (ev.key === 'Escape') { stopPresenting(); return; }
       if (ev.key === 'b' || ev.key === 'B') {     // 화면 잠깐 끄기
-        ev.preventDefault();
-        document.body.style.visibility =
-          document.body.style.visibility === 'hidden' ? '' : 'hidden';
+        ev.preventDefault(); toggleBlank();
         return;
       }
+      if (ev.key === 'p' || ev.key === 'P') { ev.preventDefault(); controlMedia('toggle'); return; }
+      if (ev.key === 'r' || ev.key === 'R') { ev.preventDefault(); controlMedia('reset'); return; }
       if (NEXT[ev.key]) { ev.preventDefault(); show(at + 1); return; }
       if (PREV[ev.key]) { ev.preventDefault(); show(at - 1); return; }
       if (ev.key === 'Home') { ev.preventDefault(); show(0); return; }
@@ -201,13 +453,23 @@
     document.addEventListener('click', function (ev) {
       if (!document.body.classList.contains('presenting')) return;
       if (interactive(ev.target)) return;
+      if (suppressFocusClick) { suppressFocusClick = false; return; }
       show(at + 1);
     });
 
     window.addEventListener('resize', fit);
     document.addEventListener('fullscreenchange', function () {
-      if (!document.fullscreenElement) stopPresenting();
+      if (!document.fullscreenElement) {
+        if (preserveOnFullscreenExit) {
+          preserveOnFullscreenExit = false; fit(); notify();
+        } else stopPresenting();
+      }
     });
+    window.addEventListener('blur', function () {
+      if (popup && !popup.closed) suppressFocusClick = true;
+    });
+    window.addEventListener('pagehide', function () { activeDocument = false; notify(); });
+    window.addEventListener('pageshow', function () { activeDocument = true; notify(); });
   }
 
   if (document.readyState === 'loading') {

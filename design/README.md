@@ -22,6 +22,7 @@ HTML 로 발표자료를 만들고 PDF 로 뽑는 슬라이드 디자인이다.
 deck.css        디자인 구현. 색, 글꼴, 슬라이드 종류, 본문 요소
 layout.css      본문 배치 규칙. deck.css 다음에 읽힌다
 present.js      전체 화면 발표와 동영상 지원
+presenter.js    N 키로 여는 별도 발표자 노트 화면
 template.html   빈 덱 뼈대. 이 파일을 고쳐 쓴다
 ```
 
@@ -58,13 +59,79 @@ google-chrome --headless=new --disable-gpu --no-pdf-header-footer \
 | 키 | 동작 |
 |---|---|
 | `F` | 전체 화면 시작. 보고 있던 슬라이드부터 |
+| `N` | 발표자 노트 창 열기 / 이미 열린 창으로 이동 |
 | 스페이스 · `→` · `↓` · PageDown · Enter | 다음 장 |
 | `←` · `↑` · PageUp · Backspace | 이전 장 |
 | Home · End | 처음 · 마지막 |
 | `B` | 화면 잠깐 끄기 |
+| `P` / `R` | 현재 장의 동영상 재생·정지 / 처음으로 초기화 |
 | Esc | 종료 |
 
 슬라이드를 눌러도 다음 장으로 넘어간다. 링크, 버튼, 동영상 재생 막대는 예외다.
+
+### 발표자 노트
+
+각 슬라이드의 안에 대본을 작성한다. `hidden`을 함께 쓰면 스크립트와 스타일이
+아직 로드되지 않은 순간에도 대본이 슬라이드에 나타나지 않는다.
+
+```html
+<section class="slide" data-label="Results">
+  <!-- 제목, 그림 등 청중에게 보이는 내용 -->
+  <aside class="speaker-notes" hidden>
+    <p>The left table shows the results.</p>
+    <p><strong>[영상 재생 후 다음 문장]</strong></p>
+    <p>We will now look at the next example.</p>
+  </aside>
+</section>
+```
+
+문단, 줄바꿈, 강조, 목록, 코드 서식이 지원된다. 노트의 실행 스크립트·이벤트 속성은
+발표자 화면으로 복사하지 않는다. 노트가 없는 장에는 빈 상태 안내가 나온다.
+
+1. HTML을 브라우저로 열고 `N` 또는 **발표자 노트**를 누른다.
+2. 두 모니터를 **확장 모드**로 설정한다. 복제 모드에서는 두 화면이 같아진다.
+3. 노트 창을 노트북에, 슬라이드 창을 프로젝터에 배치한다.
+4. 슬라이드 창에서 `F`로 전체 화면을 시작한다. 노트 창의 이전·다음 버튼으로 진행한다.
+
+노트 창에는 큰 대본, 현재·다음 장의 정지 미리보기, 글씨 크기 조절, 경과 타이머가 있다.
+슬라이드 창에서 방향키로 넘겨도 노트가 동기화된다. 미리보기에서 영상·스크립트는
+재생하지 않는다. 실제 재생은 청중 화면에서 이루어진다.
+
+노트 창에서 `P`/`R`로 미디어를 조작하고 `B`로 청중 화면을 잠깐 검게 할 수 있다.
+입력 칸이나 버튼에 포커스가 있으면 그 요소의 기본 키 동작을 우선한다.
+노트 창을 닫아도 발표는 계속된다. 다시 `N`을 누르면 현재 장에서 노트 창을 연다.
+노트 창에서 청중 창으로 돌아오는 첫 슬라이드 클릭은 초점 복귀로 처리한다. 이후 클릭은
+다음 장으로 이동한다. 키보드로 조작하면 즉시 동작한다. 전체 화면 중 `N`으로 새 창을
+열 때는 브라우저 전체 화면이 해제될 수 있지만 한 장 보기 상태는 유지된다. 필요한 경우
+청중 창에서 다시 `F`를 누른다.
+슬라이드 창을 닫거나 새로고침하면 이전 노트 창의 연결은 끊긴다. 다시 `N`으로 연다.
+
+`file://`로 직접 열 수 있으며 별도 서버는 필요하지 않다. 브라우저가 새 창을 막으면
+해당 파일/사이트의 팝업을 허용한 뒤 다시 `N`을 누른다. PDF에는 대본과 발표자용
+버튼이 포함되지 않는다. 노트 자체는 HTML에 저장되므로 HTML 원본에는 남아 있다.
+
+**기존 덱 적용:** 기존 HTML이 `present.js`를 읽고 있다면 새 `present.js`와
+`presenter.js`, `deck.css`를 함께 복사하고 각 장에 노트를 추가하면 된다.
+별도의 `<script src="presenter.js">` 태그는 필요 없다. `build.sh`도 두 JS 파일을
+덱 옆에 배포한다. [오프라인 예제](../examples/presenter-notes.html)를 참고한다.
+
+**사용자 정의 애니메이션:** `suv:media` 이벤트로 `P`/`R` 조작을 받을 수 있다.
+이벤트의 `detail.action`은 `toggle` 또는 `reset`, `detail.slide`는 현재 슬라이드다.
+직접 처리할 때 `event.preventDefault()`로 기본 video 처리를 막는다.
+
+```js
+document.addEventListener('suv:media', function (event) {
+  if (event.detail.slide !== myAnimationSlide) return;
+  event.preventDefault();
+  if (event.detail.action === 'reset') resetAnimation();
+  else toggleAnimation();
+});
+```
+
+`window.SUVPresent`의 `show(index)`는 0부터 시작하는 장 번호로 이동한다.
+`getState()`, `next()`, `prev()`, `openNotes()`, `media(action)`과 `subscribe(fn)`도
+사용할 수 있다. `subscribe`의 반환 함수는 연결을 해제한다. 장 전환 시 문서의
+`suv:slidechange` 이벤트에는 `detail.index`와 `detail.count`가 전달된다.
 
 ---
 
@@ -390,13 +457,14 @@ base64 로 넣으면 용량이 33% 늘고 탐색이 느려지며 편집과 버�
 deck.css        디자인 구현
 layout.css      배치 규칙. 배치 관련 규칙은 여기에만 둔다
 present.js      전체 화면 발표, 동영상
+presenter.js    별도 발표자 노트 화면
 template.html   빈 덱 뼈대
 mydesign.md     디자인 규격 원문. 왜 그렇게 정했는지가 적혀 있다
 assets/         로고 예시
 imgs/           이 문서의 그림
 ```
 
-이 폴더가 `deck.css`, `layout.css`, `present.js`, `mydesign.md` 의 유일한 원본이다.
+이 폴더가 `deck.css`, `layout.css`, `present.js`, `presenter.js`, `mydesign.md` 의 유일한 원본이다.
 덱 쪽 사본은 빌드가 여기서 내려보낸다. 고칠 때는 이 폴더의 파일을 고친다.
 
 편집기가 만드는 `cde-layout.css` 는 저장할 때마다 다시 쓰이므로 손대지 않는다.
