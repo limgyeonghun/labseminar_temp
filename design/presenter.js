@@ -92,10 +92,10 @@
       '<section class="next-pane" aria-label="다음 슬라이드"><div><h2 class="preview-heading">다음 슬라이드 · 정지 미리보기</h2><p id="next-label" class="preview-label"></p></div>' +
       '<div class="preview-box"><iframe id="next-preview" title="다음 슬라이드 미리보기" sandbox="allow-same-origin" tabindex="-1"></iframe></div></section>' +
       '<section class="notes-pane" aria-label="현재 슬라이드 대본"><div id="notes" tabindex="0"></div></section>' +
-      '<p class="help">노트 창은 노트북, 슬라이드 창은 프로젝터에 둡니다. 슬라이드 창에서 F를 누르면 전체 화면이 됩니다. 현재 슬라이드의 애니메이션과 영상이 청중 화면에 맞춰 표시됩니다.</p></main>' +
+      '<p class="help">화면 설정에서 청중 화면과 발표자 화면을 선택할 수 있습니다. 수동 배치는 슬라이드 창을 외부 화면에 옮긴 뒤 F를 누르세요. 현재 미리보기는 청중 화면의 재생 상태를 반영합니다.</p></main>' +
       '<footer><div class="controls"><button id="prev" class="nav" type="button">← 이전</button><button id="next" class="nav" type="button">다음 →</button>' +
       '<label for="jump">장 이동</label><input id="jump" type="number" min="1" step="1" aria-label="이동할 슬라이드 번호"><span id="jump-total"></span></div>' +
-      '<div class="controls"><button id="media-toggle" type="button">재생 / 일시정지 (P)</button><button id="media-reset" type="button">처음으로 (R)</button><button id="blank" type="button" aria-pressed="false">청중 화면 끄기 (B)</button></div></footer>';
+      '<div class="controls"><button id="display-setup" type="button">화면 설정</button><button id="media-toggle" type="button">재생 / 일시정지 (P)</button><button id="media-reset" type="button">처음으로 (R)</button><button id="blank" type="button" aria-pressed="false">청중 화면 끄기 (B)</button></div></footer>';
 
     function el(id) { return doc.getElementById(id); }
     var layout = doc.querySelector('main');
@@ -268,6 +268,7 @@
       }
     };
     el('media-toggle').onclick = function () { action(function () { api.media('toggle'); }); };
+    el('display-setup').onclick = function () { action(api.openDisplaySetup); };
     el('media-reset').onclick = function () { action(function () { api.media('reset'); }); };
     el('blank').onclick = function () { action(api.toggleBlank); };
     el('font-smaller').onclick = function () { if (connected()) setFont(fontSize - 2); };
@@ -300,7 +301,7 @@
     function pointerControl(event) {
       // Mouse users return to reading/navigation. Keyboard users retain button
       // focus, so Tab and native Space/Enter activation continue to work.
-      if (event.detail > 0 && event.target.closest && event.target.closest('button') && connected()) {
+      if (event.detail > 0 && event.target.closest && event.target.closest('button') && event.target.id !== 'display-setup' && connected()) {
         notes.focus({preventScroll: true});
       }
     }

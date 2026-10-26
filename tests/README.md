@@ -15,6 +15,8 @@ python3 tests/test_presenter.py --headed --output /tmp/suvlab-presenter-headed
 python3 tests/test_presenter_clock.py --output /tmp/suvlab-presenter-clock
 # 동영상의 표지·재생 프레임이 청중 화면과 같은지 확인
 python3 tests/test_video_poster.py --output /tmp/suvlab-video-poster
+# 외부 화면 자동 배치와 실패 시 수동 전환 검사 (최신 Chrome/Chromium)
+python3 tests/test_presenter_displays.py --output /tmp/suvlab-presenter-displays
 ```
 
 새 임시 브라우저 프로필에서 오프라인 `file://` 덱을 연다. 로컬 파일 접근·동일 출처
@@ -35,6 +37,19 @@ python3 tests/test_video_poster.py --output /tmp/suvlab-video-poster
 `test_video_poster.py`는 브라우저 안에서 테스트 영상을 만들어 재생 전 표지,
 재생·일시정지·0초 초기화, 리소스 재로드 상태를 실제 화면 픽셀로 비교한다.
 별도 영상 파일이나 인코더 설치는 필요하지 않다.
+
+`test_presenter_displays.py`는 Chrome의 가상 화면(`Emulation.addScreen`)을 추가하고
+실제 화면 선택·전체 화면·팝업 API로 두 창의 배치를 확인한다. 시작 버튼에는 실제
+마우스 입력을 보내고, 상태 조회에는 `userGesture: false`를 사용하므로 검사 코드가
+사용자 활성화를 임의로 부여하지 않는다. 권한은 테스트 브라우저에서 사전 허용한다.
+발표자 창 재사용, 장 이동·재생 제어, 설정 창 재열기도 확인한다.
+
+지원하지 않는 브라우저, 권한 거부, 단일 화면, 팝업 차단, 잘못된 화면 배치,
+전체 화면 취소·실패 등은 명시적인 API 모의 객체로 검사한다. 화면 선택 해제,
+늦은 권한 응답, 키보드 조작, 인쇄 시 설정 창 숨김도 포함한다. 이 검사는
+**가상 화면과 모의 실패 조건의 증거**이며, 실제 HDMI·프로젝터나 Windows/macOS
+화면 전환을 검증한 결과가 아니다. 가상 화면 CDP 명령을 제공하는 최신
+Chrome/Chromium이 필요하다.
 
 검사 범위는 발표자 보기 배치(현재·다음·대본 위치, 대본 중심/슬라이드 중심 전환),
 양방향 이동, 단축키, 빈 노트, 긴 대본의 스크롤 유지, 글씨 크기, 타이머,
