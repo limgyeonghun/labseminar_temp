@@ -60,6 +60,7 @@ google-chrome --headless=new --disable-gpu --no-pdf-header-footer \
 |---|---|
 | `F` | 전체 화면 시작. 보고 있던 슬라이드부터 |
 | `N` | 발표자 노트 창 열기 / 이미 열린 창으로 이동 |
+| `Q` | 발표자 창에서 대본 / Q&A 전환 (입력 중에는 글자 입력) |
 | 스페이스 · `→` · `↓` · PageDown · Enter | 다음 장 |
 | `←` · `↑` · PageUp · Backspace | 이전 장 |
 | Home · End | 처음 · 마지막 |
@@ -131,7 +132,8 @@ google-chrome --headless=new --disable-gpu --no-pdf-header-footer \
 노트 창에서 `P`/`R`로 미디어를 조작하고 `B`로 청중 화면을 잠깐 검게 할 수 있다.
 입력 칸에서는 입력을 우선한다. 버튼에 포커스가 있으면 스페이스·Enter로 버튼을
 누를 수 있고, 방향키·PageUp/PageDown·미디어 단축키는 계속 사용할 수 있다.
-노트 창의 버튼을 마우스로 누르거나 장 번호를 확정하면 대본으로 초점이 돌아온다.
+이전·다음·재생 등의 조작 버튼을 마우스로 누르거나 장 번호를 확정하면 현재 읽는
+대본 또는 답변으로 초점이 돌아온다. 질문 검색과 선택은 청중 슬라이드 이동과 분리된다.
 노트 창을 닫아도 발표는 계속된다. 다시 `N`을 누르면 현재 장에서 노트 창을 연다.
 노트 창을 새로고침해서 비었다면 슬라이드 창에서 `N`으로 다시 연다.
 노트 창에서 청중 창으로 돌아오는 첫 슬라이드 클릭은 초점 복귀로 처리한다. 이후 클릭은
@@ -151,6 +153,35 @@ google-chrome --headless=new --disable-gpu --no-pdf-header-footer \
 `requestAnimationFrame`이나 타이머 호출을 자동 변환하지는 않는다.
 별도의 `<script src="presenter.js">` 태그는 필요 없다. `build.sh`도 두 JS 파일을
 덱 옆에 배포한다. [오프라인 예제](../examples/presenter-notes.html)를 참고한다.
+
+### 발표자 Q&A
+
+발표자 창의 **Q&A** 탭 또는 `Q` 키로 준비한 질문 카드를 연다. 한글·영어 질문,
+답변, 키워드로 검색할 수 있다. **현재 장** 필터는 해당 장과 공통 질문을 함께 보여준다.
+질문을 선택해도 청중 화면은 이동하지 않으며, 다른 슬라이드로 이동해도 읽던 답변은
+유지된다. **대본**으로 돌아오면 대본의 스크롤 위치가 복구된다. A−/A＋는 답변 글씨에도 적용된다.
+검색창에 입력 중일 때 `Q`는 글자로 입력된다. `Esc` 또는 **대본** 탭으로 돌아갈 수 있다.
+
+슬라이드 밖에 아래 내용을 추가한다. `<template>` 안의 내용은 로딩 전에도 표시되거나
+실행되지 않는다. 카드는 일반 텍스트로 읽으며 HTML·이벤트 속성은 발표자 화면에 실행되지 않는다.
+
+```html
+<template class="speaker-qa">
+  <article data-qa-card data-pages="2,3" data-keywords="question repeat 질문 다시">
+    <h3 data-qa-question>질문을 다시 듣기</h3>
+    <p data-qa-question-en>Could you explain that point?</p>
+    <p data-qa-answer>Could you repeat the question, please?</p>
+    <p data-qa-note>영어 답변만 읽고, 이 메모는 상황 판단에 사용합니다.</p>
+  </article>
+</template>
+```
+
+`data-pages`는 표지·목차·구분장을 포함한 **실제 화면 번호**이며 쉼표로 구분한다.
+슬라이드 밖에서 생략하면 공통 질문이다. 특정 `.slide` 안에 템플릿을 넣고 생략하면
+그 장에 자동 연결된다. 질문과 답변은 필수이고 영어 질문·메모·키워드는 선택 항목이다.
+질문이 없거나 검색 결과가 없으면 안내를 표시한다. 창을 다시 열면 수정한 카드가 반영된다.
+이 기능은 준비한 카드를 직접 찾아보는 방식이다. 음성 인식이나 자동 답변 생성은 포함하지 않는다.
+카드는 청중 화면·슬라이드 미리보기·발표 PDF에서 제외되며, 노트처럼 HTML 원본에는 저장된다.
 
 **사용자 정의 애니메이션:** `suv:media` 이벤트로 `P`/`R` 조작을 받을 수 있다.
 이벤트의 `detail.action`은 `toggle` 또는 `reset`, `detail.slide`는 현재 슬라이드다.

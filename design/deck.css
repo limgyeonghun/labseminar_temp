@@ -372,6 +372,8 @@ a { color: var(--sky); text-decoration: none; }
 }
 /* Speaker scripts stay out of audience views and print even before JS loads. */
 .speaker-notes,
-[data-speaker-notes] {
+[data-speaker-notes],
+.speaker-qa,
+[data-speaker-qa] {
   display: none !important;
 }

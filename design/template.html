@@ -176,6 +176,15 @@ deck-stage { display: block; }
 
 </deck-stage>
 
+<!-- Q: 발표자 창에서만 보는 질의응답. data-pages는 표지·구분장을 포함한 화면 번호. -->
+<template class="speaker-qa">
+  <article data-qa-card data-keywords="repeat 질문 다시">
+    <h3 data-qa-question>질문을 다시 듣기</h3>
+    <p data-qa-answer>Could you repeat the question, please?</p>
+    <p data-qa-note>영어만 읽습니다. 이 메모는 청중에게 표시되지 않습니다.</p>
+  </article>
+</template>
+
 <script src="present.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
 <script>

@@ -41,6 +41,8 @@
   var sourceURL = document.currentScript && document.currentScript.src;
   var presenterURL = new URL('presenter.js', sourceURL || document.baseURI).href;
   var NOTES = '.speaker-notes, [data-speaker-notes]';
+  var QA = '.speaker-qa, [data-speaker-qa]';
+  var PRIVATE_CONTENT = NOTES + ', ' + QA;
 
   var CSS = [
     '.present-btn {',
@@ -74,7 +76,7 @@
     '  max-width: 520px; background: #fff; color: #0f172a; padding: 12px 18px;',
     '  border: 1px solid #93c5fd; border-radius: 8px; font: 18px/1.5 system-ui; }',
     '.present-status:empty { display: none; }',
-    '.speaker-notes, [data-speaker-notes] { display: none !important; }',
+    '.speaker-notes, [data-speaker-notes], .speaker-qa, [data-speaker-qa] { display: none !important; }',
     /* 한 장만 화면 크기에 맞춰 띄우고 나머지는 치운다. */
     'body.presenting { background: #000; overflow: hidden; }',
     'body.presenting .present-btn { display: none; }',
@@ -102,7 +104,7 @@
     '@media print {',
     '  .present-btn, .present-status, #suv-display-dialog { display: none !important; }',
     '  #suv-display-dialog::backdrop { display: none !important; }',
-    '  .speaker-notes, [data-speaker-notes] { display: none !important; }',
+    '  .speaker-notes, [data-speaker-notes], .speaker-qa, [data-speaker-qa] { display: none !important; }',
     '  body.presenting.suv-blackout::after { display: none !important; }',
     '  video::-webkit-media-controls, video::-webkit-media-controls-enclosure {',
     '    display: none !important; opacity: 0 !important;',
@@ -294,7 +296,7 @@
     var discard = /^(SCRIPT|STYLE|IFRAME|OBJECT|EMBED|TEMPLATE|SVG|MATH)$/;
     function copy(node, parent) {
       if (node.nodeType === 3) { parent.appendChild(document.createTextNode(node.textContent)); return; }
-      if (node.nodeType !== 1 || discard.test(node.tagName)) return;
+      if (node.nodeType !== 1 || discard.test(node.tagName) || node.matches(QA)) return;
       var target = parent;
       if (allowed.test(node.tagName)) {
         target = document.createElement(node.tagName.toLowerCase());
@@ -304,6 +306,38 @@
     }
     [].forEach.call(source.childNodes, function (node) { copy(node, result); });
     return result.innerHTML.trim();
+  }
+
+  // Q&A is authored as inert template content and transferred as plain text.
+  // It never enters a slide preview and selecting an answer never navigates.
+  function qaCards() {
+    var cards = [];
+    function textOf(card, field) {
+      var source = card.querySelector('[data-qa-' + field + ']');
+      if (!source || /^(SCRIPT|STYLE|IFRAME|OBJECT|EMBED|TEMPLATE)$/.test(source.tagName)) return '';
+      var copy = source.cloneNode(true);
+      [].forEach.call(copy.querySelectorAll('script, style, iframe, object, embed, template'), function (el) { el.remove(); });
+      return copy.textContent.replace(/\s+/g, ' ').trim();
+    }
+    [].forEach.call(document.querySelectorAll(QA), function (container) {
+      var root = container.content || container;
+      [].forEach.call(root.querySelectorAll('[data-qa-card]'), function (card) {
+        var question = textOf(card, 'question');
+        var answer = textOf(card, 'answer');
+        if (!question || !answer) return;
+        var pageList = card.getAttribute('data-pages');
+        var slide = container.closest('.slide');
+        var pages = pageList === null ? (slide ? [slides.indexOf(slide) + 1] : []) :
+          pageList.split(/[\s,]+/).map(Number);
+        pages = pages.filter(function (page, index) {
+          return Number.isInteger(page) && page > 0 && page <= slides.length && pages.indexOf(page) === index;
+        });
+        cards.push({id: 'qa-' + (cards.length + 1), question: question,
+          questionEN: textOf(card, 'question-en'), answer: answer, notes: textOf(card, 'note'),
+          keywords: card.getAttribute('data-keywords') || '', pages: pages});
+      });
+    });
+    return cards;
   }
 
   function getState() {
@@ -326,7 +360,7 @@
   }
 
   // SVG/SMIL timelines must not run independently in either preview.
-  var PREVIEW_SKIP = NOTES + ', script, iframe, object, embed, audio, source, track, animate, animateColor, animateMotion, animateTransform, set';
+  var PREVIEW_SKIP = PRIVATE_CONTENT + ', script, iframe, object, embed, audio, source, track, animate, animateColor, animateMotion, animateTransform, set';
   var PREVIEW_DROP_ATTR = /^(?:on.*|srcdoc|autofocus|contenteditable)$/i;
   var videoPreviewStates = new WeakMap();
 
@@ -951,7 +985,7 @@
   }
 
   var api = {
-    getState: getState, show: navigate, currentIndex: function () { return at; },
+    getState: getState, getQA: qaCards, show: navigate, currentIndex: function () { return at; },
     next: function () { navigate(at + 1); }, prev: function () { navigate(at - 1); },
     toggleBlank: toggleBlank, subscribe: subscribe, preview: preview, mirrorPreview: mirrorPreview, connected: connected,
     openNotes: openPresenter,
@@ -977,7 +1011,7 @@
     muteAll();
     slides = [].slice.call(document.querySelectorAll('.slide'));
     if (!slides.length) return;
-    [].forEach.call(document.querySelectorAll(NOTES), function (el) { el.hidden = true; });
+    [].forEach.call(document.querySelectorAll(PRIVATE_CONTENT), function (el) { el.hidden = true; });
 
     var btn = document.createElement('button');
     btn.className = 'present-btn';

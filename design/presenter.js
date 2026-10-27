@@ -53,6 +53,9 @@
     '.preview-label { margin: 0; color: #cbd5e1; font-size: 15px; line-height: 1.4; overflow-wrap: anywhere; }',
     '.help { grid-area: help; align-self: end; margin: 0; color: #94a3b8; font-size: 12px; line-height: 1.5; word-break: keep-all; }',
     '.notes-pane { grid-area: notes; min-width: 0; min-height: 0; display: flex; flex-direction: column; background: #111827; border: 1px solid #1f2937; border-radius: 10px; }',
+    '.notes-tabs { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid #1f2937; flex: none; }',
+    '.notes-tabs [aria-selected="true"] { background: #1d4ed8; border-color: #60a5fa; color: #fff; }',
+    '.notes-tabs .tab-hint { margin-left: auto; color: #94a3b8; font-size: 12px; }',
     '#notes { flex: 1; min-height: 0; overflow-y: auto; padding: 20px 24px 32px; border-radius: 10px; color: #f8fafc; font-size: 32px; line-height: 1.5; word-break: keep-all; overflow-wrap: anywhere; }',
     '#notes:focus-visible { outline: 2px solid rgba(147, 197, 253, .55); outline-offset: -2px; }',
     '#notes p { margin: 0 0 .7em; }',
@@ -61,6 +64,25 @@
     '#notes pre { white-space: pre-wrap; }',
     '#notes.empty { color: #94a3b8; font-size: 24px; }',
     '#notes strong { color: #93c5fd; }',
+    '#qa-panel { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }',
+    '.qa-tools { padding: 12px 16px 8px; display: grid; gap: 8px; flex: none; }',
+    '#qa-search { box-sizing: border-box; width: 100%; min-width: 0; padding: 9px 11px; border: 1px solid #475569; border-radius: 7px; background: #0b1120; color: #f8fafc; font-size: 16px; }',
+    '.qa-filter { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px 12px; color: #94a3b8; font-size: 13px; }',
+    '.qa-filter label { display: flex; align-items: center; gap: 5px; }',
+    '#qa-current-only { accent-color: #60a5fa; }',
+    '#qa-list { flex: none; max-height: 148px; overflow-y: auto; list-style: none; padding: 0 16px 10px; margin: 0; }',
+    '#qa-list li + li { margin-top: 6px; }',
+    '#qa-list button { width: 100%; text-align: left; white-space: normal; overflow-wrap: anywhere; word-break: keep-all; line-height: 1.4; font-size: 15px; padding: 8px 10px; }',
+    '#qa-list button[aria-pressed="true"] { border-color: #60a5fa; background: #172e52; color: #dbeafe; }',
+    '#qa-empty { padding: 4px 16px 12px; margin: 0; color: #94a3b8; font-size: 14px; line-height: 1.5; }',
+    '#qa-answer-panel { flex: 1; min-height: 0; overflow-y: auto; padding: 16px 20px 24px; border-top: 1px solid #334155; overflow-wrap: anywhere; word-break: keep-all; }',
+    '#qa-answer-panel:focus-visible { outline: 2px solid rgba(147,197,253,.55); outline-offset: -2px; }',
+    '#qa-question { margin: 0 0 5px; font-size: 18px; line-height: 1.4; color: #93c5fd; }',
+    '#qa-question-en { margin: 0 0 14px; font-size: 15px; line-height: 1.45; color: #cbd5e1; }',
+    '.qa-answer-label { margin: 0 0 7px; font-size: 12px; color: #94a3b8; }',
+    '#qa-answer { margin: 0; font-size: 32px; line-height: 1.5; color: #f8fafc; white-space: pre-line; }',
+    '#qa-answer.empty { font-size: 20px !important; color: #94a3b8; }',
+    '#qa-note { margin: 18px 0 0; padding: 12px; border-left: 3px solid #64748b; background: #1e293b; color: #cbd5e1; font-size: 15px; line-height: 1.6; white-space: pre-line; }',
     'footer { display: flex; align-items: center; justify-content: space-between; gap: 8px 16px; flex-wrap: wrap; padding: 8px 16px; background: #111827; border-top: 1px solid #1f2937; }',
     '.nav { min-width: 92px; font-weight: 700; }',
     '#next { color: #fff; background: #2563eb; border-color: #2563eb; }',
@@ -69,7 +91,8 @@
     '#blank[aria-pressed="true"] { background: #fbbf24; border-color: #fbbf24; color: #0f172a; }',
     // Narrow windows always give the script the wide column.
     '@media (max-width: 900px) { header { display: flex; flex-wrap: wrap; } .script-tools { margin-left: auto; } #reading-toggle, .help { display: none; } main, main.reading { grid-template-columns: minmax(0, 9fr) minmax(0, 16fr); grid-template-rows: auto auto minmax(0, 1fr); grid-template-areas: "current notes" "next notes" ". notes"; gap: 10px 12px; padding: 10px 12px; } .next-pane { grid-template-columns: minmax(0, 1fr); gap: 6px; } #notes { padding: 16px 18px 24px; } }',
-    '@media (max-width: 620px) { main, main.reading { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); grid-template-areas: "notes"; } .current-pane, .next-pane { display: none; } #notes { padding: 14px; } }'
+    '@media (max-width: 620px) { main, main.reading { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); grid-template-areas: "notes"; } .current-pane, .next-pane { display: none; } #notes { padding: 14px; } }',
+    '@media (max-height: 760px) { #qa-list { max-height: 106px; } .qa-tools { padding-top: 8px; } #qa-answer-panel { padding: 12px 16px 20px; } }'
   ].join('\n');
 
   function mount(win, api) {
@@ -83,7 +106,7 @@
     doc.body.innerHTML =
       '<header><div class="brand"><h1>발표자 노트</h1><div id="connection" role="status">슬라이드 창에 연결됨</div></div>' +
       '<div class="clock"><span class="clock-label">경과 시간</span><output id="elapsed">00:00</output><button id="timer-toggle" type="button">타이머 시작</button><button id="timer-reset" type="button">타이머 초기화</button></div>' +
-      '<div class="script-tools"><span class="tool-label">대본 글씨</span><button id="font-smaller" type="button" aria-label="대본 글씨 줄이기">A−</button><span id="font-size">32px</span><button id="font-larger" type="button" aria-label="대본 글씨 키우기">A＋</button>' +
+      '<div class="script-tools"><span class="tool-label">읽기 글씨</span><button id="font-smaller" type="button" aria-label="대본과 답변 글씨 줄이기">A−</button><span id="font-size">32px</span><button id="font-larger" type="button" aria-label="대본과 답변 글씨 키우기">A＋</button>' +
       '<button id="reading-toggle" type="button" aria-pressed="false">대본 중심</button></div></header>' +
       '<p id="disconnect-message" role="alert" hidden>슬라이드 창 연결이 끊겼습니다. 슬라이드 창에서 N을 눌러 새 발표자 창을 여세요.</p>' +
       '<main><section class="current-pane" aria-label="현재 슬라이드"><h2 class="preview-heading">현재 슬라이드 · 실시간 미리보기</h2>' +
@@ -91,7 +114,16 @@
       '<p id="current-label" hidden></p><div class="slide-caption"><span id="slide-count"></span><p id="note-title"></p></div></section>' +
       '<section class="next-pane" aria-label="다음 슬라이드"><div><h2 class="preview-heading">다음 슬라이드 · 정지 미리보기</h2><p id="next-label" class="preview-label"></p></div>' +
       '<div class="preview-box"><iframe id="next-preview" title="다음 슬라이드 미리보기" sandbox="allow-same-origin" tabindex="-1"></iframe></div></section>' +
-      '<section class="notes-pane" aria-label="현재 슬라이드 대본"><div id="notes" tabindex="0"></div></section>' +
+      '<section class="notes-pane" aria-label="발표자 전용 메모"><div class="notes-tabs" role="tablist" aria-label="발표자 메모 전환">' +
+      '<button id="notes-tab" type="button" role="tab" aria-controls="notes" aria-selected="true">대본</button>' +
+      '<button id="qa-tab" type="button" role="tab" aria-controls="qa-panel" aria-selected="false" tabindex="-1">Q&amp;A</button><span class="tab-hint">Q: 전환 · Esc: 대본</span></div>' +
+      '<div id="notes" tabindex="0" role="tabpanel" aria-labelledby="notes-tab"></div>' +
+      '<div id="qa-panel" role="tabpanel" aria-labelledby="qa-tab" hidden><div class="qa-tools">' +
+      '<input id="qa-search" type="search" placeholder="질문·키워드 검색" aria-label="질의응답 검색" autocomplete="off">' +
+      '<div class="qa-filter"><label><input id="qa-current-only" type="checkbox">현재 장 + 공통</label><span id="qa-count" role="status"></span></div></div>' +
+      '<ul id="qa-list" aria-label="준비한 질문"></ul><p id="qa-empty" hidden></p>' +
+      '<div id="qa-answer-panel" tabindex="0" aria-label="선택한 질문의 답변"><h2 id="qa-question"></h2><p id="qa-question-en"></p>' +
+      '<p id="qa-answer-label" class="qa-answer-label">영어 답변 · 그대로 읽기</p><p id="qa-answer"></p><p id="qa-note"></p></div></div></section>' +
       '<p class="help">화면 설정에서 청중 화면과 발표자 화면을 선택할 수 있습니다. 수동 배치는 슬라이드 창을 외부 화면에 옮긴 뒤 F를 누르세요. 현재 미리보기는 청중 화면의 재생 상태를 반영합니다.</p></main>' +
       '<footer><div class="controls"><button id="prev" class="nav" type="button">← 이전</button><button id="next" class="nav" type="button">다음 →</button>' +
       '<label for="jump">장 이동</label><input id="jump" type="number" min="1" step="1" aria-label="이동할 슬라이드 번호"><span id="jump-total"></span></div>' +
@@ -104,6 +136,18 @@
     var lastNotes = null;
     var fontSize = 32;
     var reading = false;
+    var qaMode = false, qaSelected = null, qaCards = [];
+    var qaScroll = 0, qaLayoutChanged = false;
+    if (api.getQA) {
+      try { qaCards = api.getQA() || []; } catch (error) { qaCards = []; }
+    }
+    if (!Array.isArray(qaCards)) qaCards = [];
+    qaCards = qaCards.map(function (card, index) {
+      function plain(value) { return typeof value === 'string' ? value : ''; }
+      return {id: plain(card.id) || String(index), question: plain(card.question), questionEN: plain(card.questionEN),
+        answer: plain(card.answer), notes: plain(card.notes), keywords: plain(card.keywords),
+        pages: Array.isArray(card.pages) ? card.pages.filter(function (page) { return Number.isInteger(page) && page > 0; }) : []};
+    });
     var scrollPositions = {};
     var scrollRatios = {};
     var timerRunning = false, elapsed = 0, startedAt = 0;
@@ -193,7 +237,7 @@
       var reset = 'html,body{width:' + data.width + 'px;height:' + data.height + 'px;margin:0!important;padding:0!important;overflow:hidden;background:white}' +
         'deck-stage{display:block!important;margin:0!important;padding:0!important}' +
         '.slide{position:relative!important;left:auto!important;top:auto!important;width:' + data.width + 'px!important;height:' + data.height + 'px!important;margin:0!important;transform:none!important;box-shadow:none!important}' +
-        '.speaker-notes,[data-speaker-notes],.present-btn,.present-status{display:none!important}' +
+        '.speaker-notes,[data-speaker-notes],.speaker-qa,[data-speaker-qa],.present-btn,.present-status{display:none!important}' +
         '*,*::before,*::after{animation:none!important;transition:none!important;caret-color:transparent!important}';
       // Canvas displays its fallback instead of its bitmap when sandbox scripting
       // is disabled. Enable that browser capability only for the current frame,
@@ -203,12 +247,88 @@
       frame.srcdoc = '<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="' + escapeHTML(policy) + '"><base href="' + escapeHTML(data.baseURL) + '">' + data.styles + '<style>' + reset + '</style></head><body data-suv-preview-index="' + index + '">' + data.html + '</body></html>';
       label.textContent = data.title; sizePreview(frame);
     }
+    function focusReadingPane() {
+      (qaMode ? el('qa-answer-panel') : notes).focus({preventScroll: true});
+    }
+    function renderQAAnswer(card) {
+      qaSelected = card;
+      el('qa-question').textContent = card ? (card.question || card.questionEN) : '질문을 선택하세요.';
+      el('qa-question-en').textContent = card ? card.questionEN : '';
+      el('qa-question-en').hidden = !card || !card.questionEN || card.questionEN === card.question;
+      el('qa-answer-label').hidden = !card;
+      el('qa-answer').textContent = card ? card.answer : '질문을 고르면 준비한 답변을 여기에서 읽을 수 있습니다.';
+      el('qa-answer').classList.toggle('empty', !card);
+      el('qa-note').textContent = card ? card.notes : '';
+      el('qa-note').hidden = !card || !card.notes;
+      el('qa-answer-panel').scrollTop = 0;
+      qaScroll = 0;
+    }
+    function renderQAList() {
+      var query = el('qa-search').value.toLocaleLowerCase().trim().split(/\s+/).filter(Boolean);
+      var page = current ? current.index + 1 : 0;
+      var found = qaCards.filter(function (card) {
+        var text = [card.question, card.questionEN, card.answer, card.notes, card.keywords].join(' ').toLocaleLowerCase();
+        return (!el('qa-current-only').checked || !card.pages.length || card.pages.indexOf(page) >= 0) &&
+          query.every(function (term) { return text.indexOf(term) >= 0; });
+      });
+      var fragment = doc.createDocumentFragment();
+      found.forEach(function (card) {
+        var item = doc.createElement('li'), button = doc.createElement('button');
+        button.type = 'button'; button.dataset.qaId = card.id;
+        button.textContent = card.question || card.questionEN;
+        button.title = card.questionEN;
+        button.setAttribute('aria-pressed', String(card === qaSelected));
+        button.onclick = function (event) {
+          if (!connected()) return;
+          renderQAAnswer(card);
+          // Update selection without rebuilding the list or losing keyboard focus.
+          [].forEach.call(el('qa-list').querySelectorAll('button'), function (other) {
+            other.setAttribute('aria-pressed', String(other === button));
+          });
+          if (event.detail > 0) focusReadingPane();
+        };
+        item.appendChild(button); fragment.appendChild(item);
+      });
+      el('qa-list').replaceChildren(fragment);
+      el('qa-count').textContent = found.length + ' / ' + qaCards.length + '개 질문';
+      el('qa-empty').hidden = !!found.length;
+      el('qa-empty').textContent = qaCards.length ? '검색 결과가 없습니다. 검색어나 현재 장 필터를 바꿔 주세요.' : '등록된 Q&A가 없습니다.';
+      // Deliberately keep the selected answer when a search or slide change
+      // filters its card out. Only choosing another question changes the answer.
+    }
+    function setPanel(showQA, moveFocus) {
+      if (qaMode !== showQA) {
+        if (showQA) {
+          if (current) {
+            scrollPositions[current.index] = notes.scrollTop;
+            var range = notes.scrollHeight - notes.clientHeight;
+            if (range > 0) scrollRatios[current.index] = notes.scrollTop / range;
+          }
+          qaLayoutChanged = false;
+        } else qaScroll = el('qa-answer-panel').scrollTop;
+        qaMode = showQA;
+        notes.hidden = qaMode; el('qa-panel').hidden = !qaMode;
+        el('notes-tab').setAttribute('aria-selected', String(!qaMode));
+        el('qa-tab').setAttribute('aria-selected', String(qaMode));
+        el('notes-tab').tabIndex = qaMode ? -1 : 0;
+        el('qa-tab').tabIndex = qaMode ? 0 : -1;
+        if (qaMode) {
+          renderQAList(); el('qa-answer-panel').scrollTop = qaScroll;
+        } else if (current) {
+          notes.scrollTop = qaLayoutChanged ? (scrollRatios[current.index] || 0) * (notes.scrollHeight - notes.clientHeight) : (scrollPositions[current.index] || 0);
+        }
+      }
+      if (moveFocus) {
+        if (qaMode) el('qa-search').focus({preventScroll: true});
+        else notes.focus({preventScroll: true});
+      }
+    }
     function render(state) {
       if (destroyed) return;
       if (!state.connected) { disconnect(); return; }
       if (!connected()) return;
       var changed = !current || state.index !== current.index;
-      if (changed && current) scrollPositions[current.index] = notes.scrollTop;
+      if (changed && current && !qaMode) scrollPositions[current.index] = notes.scrollTop;
       if (changed || state.notesHTML !== lastNotes) {
         var previousScroll = notes.scrollTop;
         notes.classList.toggle('empty', !state.notesHTML);
@@ -230,11 +350,13 @@
       if (changed) {
         renderPreview(el('current-preview'), el('current-label'), state.index, true);
         renderPreview(el('next-preview'), el('next-label'), state.index + 1);
+        if (el('qa-current-only').checked) renderQAList();
       }
     }
     function setFont(value) {
       fontSize = Math.max(20, Math.min(64, value));
-      notes.style.fontSize = fontSize + 'px'; el('font-size').textContent = fontSize + 'px';
+      notes.style.fontSize = fontSize + 'px'; el('qa-answer').style.fontSize = fontSize + 'px';
+      el('font-size').textContent = fontSize + 'px';
       el('font-smaller').disabled = fontSize <= 20; el('font-larger').disabled = fontSize >= 64;
     }
     function setReading(on) {
@@ -242,15 +364,20 @@
       var range = notes.scrollHeight - notes.clientHeight;
       // A script may fit entirely in reading mode. Retain this slide's last
       // scrollable position so returning to the narrower layout restores it.
-      if (range > 0) scrollRatios[current.index] = notes.scrollTop / range;
+      if (!qaMode && range > 0) scrollRatios[current.index] = notes.scrollTop / range;
       var ratio = scrollRatios[current.index] || 0;
       reading = on;
       layout.classList.toggle('reading', on);
       el('reading-toggle').setAttribute('aria-pressed', String(on));
       el('reading-toggle').textContent = on ? '슬라이드 중심' : '대본 중심';
       resize();
-      notes.scrollTop = ratio * (notes.scrollHeight - notes.clientHeight);
+      if (qaMode) qaLayoutChanged = true;
+      else notes.scrollTop = ratio * (notes.scrollHeight - notes.clientHeight);
     }
+    el('notes-tab').onclick = function (event) { if (connected()) setPanel(false, event.detail > 0); };
+    el('qa-tab').onclick = function (event) { if (connected()) setPanel(true, event.detail > 0); };
+    el('qa-search').oninput = function () { if (connected()) renderQAList(); };
+    el('qa-current-only').onchange = function () { if (connected()) renderQAList(); };
     el('prev').onclick = function () { action(api.prev); };
     el('next').onclick = function () { action(api.next); };
     function jumpToSlide() {
@@ -258,7 +385,7 @@
         var index = Number(el('jump').value) - 1;
         if (Number.isInteger(index) && index >= 0 && index < current.count) api.show(index);
         else el('jump').value = String(current.index + 1);
-        notes.focus({preventScroll: true});
+        focusReadingPane();
       });
     }
     el('jump').onchange = jumpToSlide;
@@ -284,10 +411,35 @@
     function keydown(event) {
       if (event.ctrlKey || event.metaKey || event.altKey || event.isComposing) return;
       var target = event.target;
-      if (target && (target.isContentEditable || (target.closest && target.closest('input, textarea, select')))) return;
-      if (target && target.closest && target.closest('button') && (event.key === ' ' || event.key === 'Enter')) return;
       if (!connected()) return;
-      var key = event.key.toLowerCase(), handled = true;
+      var key = event.key.toLowerCase();
+      if (qaMode && key === 'escape') { event.preventDefault(); setPanel(false, true); return; }
+      if (target && (target.isContentEditable || (target.closest && target.closest('input, textarea, select')))) return;
+      if (target && target.closest && target.closest('.notes-tabs')) {
+        if (['arrowleft', 'arrowright', 'home', 'end'].indexOf(key) >= 0) {
+          event.preventDefault();
+          var nextQA = key === 'end' || (key !== 'home' && !qaMode);
+          setPanel(nextQA, false); (nextQA ? el('qa-tab') : el('notes-tab')).focus(); return;
+        }
+        if (['arrowup', 'arrowdown', 'pageup', 'pagedown'].indexOf(key) >= 0) return;
+      }
+      if (target && target.closest && target.closest('#qa-list')) {
+        if (['arrowleft', 'arrowright', 'arrowup', 'arrowdown', 'home', 'end', 'pageup', 'pagedown'].indexOf(key) >= 0) {
+          event.preventDefault();
+          var buttons = [].slice.call(el('qa-list').querySelectorAll('button'));
+          var index = buttons.indexOf(target.closest('button'));
+          if (key === 'home') index = 0;
+          else if (key === 'end') index = buttons.length - 1;
+          else if (key === 'arrowup' || key === 'arrowleft' || key === 'pageup') index--;
+          else index++;
+          if (buttons.length) buttons[Math.max(0, Math.min(buttons.length - 1, index))].focus();
+          return;
+        }
+      }
+      if (qaMode && target && target.closest && target.closest('#qa-answer-panel') &&
+          ['arrowup', 'arrowdown', 'pageup', 'pagedown', 'home', 'end', ' '].indexOf(key) >= 0) return;
+      if (target && target.closest && target.closest('button') && (event.key === ' ' || event.key === 'Enter')) return;
+      var handled = true;
       if (['arrowright', 'arrowdown', 'pagedown', ' ', 'enter'].indexOf(key) >= 0) action(api.next);
       else if (['arrowleft', 'arrowup', 'pageup', 'backspace'].indexOf(key) >= 0) action(api.prev);
       else if (key === 'home') action(function () { api.show(0); });
@@ -295,14 +447,16 @@
       else if (key === 'p') action(function () { api.media('toggle'); });
       else if (key === 'r') action(function () { api.media('reset'); });
       else if (key === 'b') action(api.toggleBlank);
+      else if (key === 'q') setPanel(!qaMode, true);
       else handled = false;
       if (handled) event.preventDefault();
     }
     function pointerControl(event) {
       // Mouse users return to reading/navigation. Keyboard users retain button
       // focus, so Tab and native Space/Enter activation continue to work.
-      if (event.detail > 0 && event.target.closest && event.target.closest('button') && event.target.id !== 'display-setup' && connected()) {
-        notes.focus({preventScroll: true});
+      if (event.detail > 0 && event.target.closest && event.target.closest('button') && event.target.id !== 'display-setup' &&
+          !event.target.closest('.notes-tabs, #qa-panel') && connected()) {
+        focusReadingPane();
       }
     }
     function resize() { sizePreview(el('current-preview')); sizePreview(el('next-preview')); }
@@ -329,6 +483,7 @@
     if (api.attachAnimationWindow) detachAnimationWindow = api.attachAnimationWindow(win);
     unsubscribe = api.subscribe(render);
     render(api.getState()); paintTimer();
+    renderQAAnswer(qaCards[0] || null); renderQAList();
     interval = win.setInterval(function () { if (connected()) paintTimer(); }, 250);
     notes.focus();
     return cleanup;
