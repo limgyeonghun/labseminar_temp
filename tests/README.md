@@ -19,6 +19,8 @@ python3 tests/test_video_poster.py --output /tmp/suvlab-video-poster
 python3 tests/test_presenter_displays.py --output /tmp/suvlab-presenter-displays
 # 발표자 전용 Q&A 검색·선택·비공개 표시 검사
 python3 tests/test_presenter_qa.py --output /tmp/suvlab-presenter-qa
+# 많은 질문을 훑는 전체 목록·분류·답변 전환 검사
+python3 tests/test_presenter_qa_browse.py --output /tmp/suvlab-presenter-qa-browse
 ```
 
 새 임시 브라우저 프로필에서 오프라인 `file://` 덱을 연다. 로컬 파일 접근·동일 출처
@@ -59,6 +61,13 @@ Chrome/Chromium이 필요하다.
 슬라이드나 재생 상태를 바꾸지 않는지도 검사한다. Q&A 원문이 청중 화면·두 미리보기·
 인쇄 PDF에 나타나지 않고, HTML처럼 생긴 답변도 실행되지 않는 일반 텍스트로 표시되는지
 확인한다. 결과 스크린샷은 `--output` 폴더에 보관한다.
+
+`test_presenter_qa_browse.py`는 일반 발표 연습용 질문 46개를 사용한다. Q&A를 열었을 때
+질문 목록이 작업 영역을 넓게 사용하고, 읽을 수 있는 크기로 많은 질문이 동시에 보이는지
+실제 화면 좌표로 검사한다. 분류·검색·현재 장 필터의 조합, 질문 선택 후 답변 보기,
+목록으로 돌아왔을 때 스크롤 복원, 작은 창의 답변 전체 폭, Esc의 답변→목록→대본
+전환을 확인한다. 목록·분류·검색을 조작할 때 청중 슬라이드나 재생 상태가 바뀌지
+않는지도 확인하며, 분류 이름은 HTML처럼 보이더라도 일반 텍스트로 표시해야 한다.
 
 검사 범위는 발표자 보기 배치(현재·다음·대본 위치, 대본 중심/슬라이드 중심 전환),
 양방향 이동, 단축키, 빈 노트, 긴 대본의 스크롤 유지, 글씨 크기, 타이머,

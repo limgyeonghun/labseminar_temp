@@ -334,6 +334,7 @@
         });
         cards.push({id: 'qa-' + (cards.length + 1), question: question,
           questionEN: textOf(card, 'question-en'), answer: answer, notes: textOf(card, 'note'),
+          category: (card.getAttribute('data-category') || '').replace(/\s+/g, ' ').trim(),
           keywords: card.getAttribute('data-keywords') || '', pages: pages});
       });
     });

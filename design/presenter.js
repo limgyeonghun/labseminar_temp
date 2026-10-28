@@ -65,17 +65,29 @@
     '#notes.empty { color: #94a3b8; font-size: 24px; }',
     '#notes strong { color: #93c5fd; }',
     '#qa-panel { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }',
-    '.qa-tools { padding: 12px 16px 8px; display: grid; gap: 8px; flex: none; }',
+    '.qa-tools { padding: 10px 16px; display: grid; gap: 8px; flex: none; border-bottom: 1px solid #334155; }',
+    '.qa-search-row { display: flex; align-items: center; gap: 10px; min-width: 0; }',
+    '#qa-back { flex: none; color: #dbeafe; border-color: #60a5fa; }',
     '#qa-search { box-sizing: border-box; width: 100%; min-width: 0; padding: 9px 11px; border: 1px solid #475569; border-radius: 7px; background: #0b1120; color: #f8fafc; font-size: 16px; }',
     '.qa-filter { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px 12px; color: #94a3b8; font-size: 13px; }',
     '.qa-filter label { display: flex; align-items: center; gap: 5px; }',
     '#qa-current-only { accent-color: #60a5fa; }',
-    '#qa-list { flex: none; max-height: 148px; overflow-y: auto; list-style: none; padding: 0 16px 10px; margin: 0; }',
-    '#qa-list li + li { margin-top: 6px; }',
-    '#qa-list button { width: 100%; text-align: left; white-space: normal; overflow-wrap: anywhere; word-break: keep-all; line-height: 1.4; font-size: 15px; padding: 8px 10px; }',
+    '#qa-categories { display: flex; flex-wrap: wrap; gap: 5px; }',
+    '#qa-categories button { padding: 5px 10px; font-size: 13px; white-space: normal; overflow-wrap: anywhere; }',
+    '#qa-categories button[aria-pressed="true"] { background: #1d4ed8; border-color: #60a5fa; color: #fff; }',
+    '#qa-slide-context { min-width: 0; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #94a3b8; font-size: 12px; margin-left: 8px; }',
+    '.qa-workspace { flex: 1; min-height: 0; min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); overflow: hidden; }',
+    '#qa-list { min-height: 0; min-width: 0; overflow-y: auto; list-style: none; padding: 12px 16px 18px; margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; align-items: start; gap: 14px 18px; scrollbar-gutter: stable; }',
+    '.qa-group { min-width: 0; }',
+    '.qa-group h3 { margin: 0 0 7px; padding: 0 2px; color: #93c5fd; font-size: 14px; line-height: 1.4; overflow-wrap: anywhere; }',
+    '.qa-group ul { list-style: none; padding: 0; margin: 0; }',
+    '.qa-group li + li { margin-top: 4px; }',
+    '#qa-list button { width: 100%; text-align: left; white-space: normal; overflow-wrap: anywhere; word-break: keep-all; line-height: 1.4; font-size: 15px; padding: 7px 10px; }',
     '#qa-list button[aria-pressed="true"] { border-color: #60a5fa; background: #172e52; color: #dbeafe; }',
-    '#qa-empty { padding: 4px 16px 12px; margin: 0; color: #94a3b8; font-size: 14px; line-height: 1.5; }',
-    '#qa-answer-panel { flex: 1; min-height: 0; overflow-y: auto; padding: 16px 20px 24px; border-top: 1px solid #334155; overflow-wrap: anywhere; word-break: keep-all; }',
+    '#qa-empty { padding: 12px 16px; margin: 0; color: #94a3b8; font-size: 14px; line-height: 1.5; }',
+    '#qa-answer-panel { min-height: 0; min-width: 0; overflow-y: auto; padding: 18px 24px 28px; border-left: 1px solid #334155; overflow-wrap: anywhere; word-break: keep-all; }',
+    '.qa-detail .qa-workspace { grid-template-columns: minmax(280px, 2fr) minmax(0, 3fr); }',
+    '.qa-detail #qa-list { grid-template-columns: minmax(0, 1fr); }',
     '#qa-answer-panel:focus-visible { outline: 2px solid rgba(147,197,253,.55); outline-offset: -2px; }',
     '#qa-question { margin: 0 0 5px; font-size: 18px; line-height: 1.4; color: #93c5fd; }',
     '#qa-question-en { margin: 0 0 14px; font-size: 15px; line-height: 1.45; color: #cbd5e1; }',
@@ -92,7 +104,15 @@
     // Narrow windows always give the script the wide column.
     '@media (max-width: 900px) { header { display: flex; flex-wrap: wrap; } .script-tools { margin-left: auto; } #reading-toggle, .help { display: none; } main, main.reading { grid-template-columns: minmax(0, 9fr) minmax(0, 16fr); grid-template-rows: auto auto minmax(0, 1fr); grid-template-areas: "current notes" "next notes" ". notes"; gap: 10px 12px; padding: 10px 12px; } .next-pane { grid-template-columns: minmax(0, 1fr); gap: 6px; } #notes { padding: 16px 18px 24px; } }',
     '@media (max-width: 620px) { main, main.reading { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); grid-template-areas: "notes"; } .current-pane, .next-pane { display: none; } #notes { padding: 14px; } }',
-    '@media (max-height: 760px) { #qa-list { max-height: 106px; } .qa-tools { padding-top: 8px; } #qa-answer-panel { padding: 12px 16px 20px; } }'
+    '@media (max-height: 760px) { .qa-tools { padding-top: 8px; } #qa-answer-panel { padding: 12px 16px 20px; } }',
+    // Q&A owns the available space; the audience and source playback are unchanged.
+    'main.qa-mode, main.qa-mode.reading { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); grid-template-areas: "notes"; }',
+    'main.qa-mode .current-pane, main.qa-mode .next-pane, main.qa-mode .help { display: none; }',
+    '@media (min-width: 1450px) { #qa-panel:not(.qa-detail) #qa-list { grid-template-columns: repeat(3, minmax(0, 1fr)); } }',
+    '@media (max-width: 900px) { body.qa-active header { flex-wrap: nowrap; gap: 10px; } body.qa-active #connection, body.qa-active .clock-label, body.qa-active .tool-label, body.qa-active #font-size { display: none; } body.qa-active .clock { margin-left: auto; flex-wrap: nowrap; } body.qa-active .script-tools { flex-wrap: nowrap; margin-left: 0; } body.qa-active footer #display-setup, body.qa-active footer #media-toggle, body.qa-active footer #media-reset { display: none; } }',
+    '@media (max-width: 800px) { .qa-detail .qa-workspace { grid-template-columns: minmax(0, 1fr); } .qa-detail #qa-list { display: none; } #qa-answer-panel { border-left: 0; } .qa-tools { padding: 8px 12px; } #qa-list { padding: 10px 12px 14px; gap: 12px; } #qa-list button { font-size: 14px; line-height: 1.35; padding: 5px 9px; } #qa-slide-context { display: none; } }',
+    '@media (max-width: 620px) { body.qa-active #timer-toggle, body.qa-active #timer-reset { display: none; } body.qa-active .script-tools { margin-left: auto; } }',
+    '@media (max-width: 620px) { #qa-list { grid-template-columns: minmax(0, 1fr); } .notes-tabs .tab-hint { font-size: 11px; } #qa-categories { max-height: 74px; overflow-y: auto; } #qa-back { padding: 7px 8px; } }'
   ].join('\n');
 
   function mount(win, api) {
@@ -116,14 +136,15 @@
       '<div class="preview-box"><iframe id="next-preview" title="다음 슬라이드 미리보기" sandbox="allow-same-origin" tabindex="-1"></iframe></div></section>' +
       '<section class="notes-pane" aria-label="발표자 전용 메모"><div class="notes-tabs" role="tablist" aria-label="발표자 메모 전환">' +
       '<button id="notes-tab" type="button" role="tab" aria-controls="notes" aria-selected="true">대본</button>' +
-      '<button id="qa-tab" type="button" role="tab" aria-controls="qa-panel" aria-selected="false" tabindex="-1">Q&amp;A</button><span class="tab-hint">Q: 전환 · Esc: 대본</span></div>' +
+      '<button id="qa-tab" type="button" role="tab" aria-controls="qa-panel" aria-selected="false" tabindex="-1">Q&amp;A</button><span id="qa-slide-context" hidden></span><span id="qa-hint" class="tab-hint">Q: 전환 · Esc: 대본</span></div>' +
       '<div id="notes" tabindex="0" role="tabpanel" aria-labelledby="notes-tab"></div>' +
       '<div id="qa-panel" role="tabpanel" aria-labelledby="qa-tab" hidden><div class="qa-tools">' +
-      '<input id="qa-search" type="search" placeholder="질문·키워드 검색" aria-label="질의응답 검색" autocomplete="off">' +
+      '<div class="qa-search-row"><button id="qa-back" type="button" hidden>← 질문 목록</button><input id="qa-search" type="search" placeholder="질문·키워드 검색" aria-label="질의응답 검색" autocomplete="off"></div>' +
+      '<div id="qa-categories" aria-label="질문 분류"></div>' +
       '<div class="qa-filter"><label><input id="qa-current-only" type="checkbox">현재 장 + 공통</label><span id="qa-count" role="status"></span></div></div>' +
-      '<ul id="qa-list" aria-label="준비한 질문"></ul><p id="qa-empty" hidden></p>' +
-      '<div id="qa-answer-panel" tabindex="0" aria-label="선택한 질문의 답변"><h2 id="qa-question"></h2><p id="qa-question-en"></p>' +
-      '<p id="qa-answer-label" class="qa-answer-label">영어 답변 · 그대로 읽기</p><p id="qa-answer"></p><p id="qa-note"></p></div></div></section>' +
+      '<p id="qa-empty" hidden></p><div class="qa-workspace"><ul id="qa-list" aria-label="준비한 질문"></ul>' +
+      '<div id="qa-answer-panel" tabindex="0" aria-label="선택한 질문의 답변" hidden><h2 id="qa-question"></h2><p id="qa-question-en"></p>' +
+      '<p id="qa-answer-label" class="qa-answer-label">영어 답변 · 그대로 읽기</p><p id="qa-answer"></p><p id="qa-note"></p></div></div></div></section>' +
       '<p class="help">화면 설정에서 청중 화면과 발표자 화면을 선택할 수 있습니다. 수동 배치는 슬라이드 창을 외부 화면에 옮긴 뒤 F를 누르세요. 현재 미리보기는 청중 화면의 재생 상태를 반영합니다.</p></main>' +
       '<footer><div class="controls"><button id="prev" class="nav" type="button">← 이전</button><button id="next" class="nav" type="button">다음 →</button>' +
       '<label for="jump">장 이동</label><input id="jump" type="number" min="1" step="1" aria-label="이동할 슬라이드 번호"><span id="jump-total"></span></div>' +
@@ -136,7 +157,8 @@
     var lastNotes = null;
     var fontSize = 32;
     var reading = false;
-    var qaMode = false, qaSelected = null, qaCards = [];
+    var qaMode = false, qaSelected = null, qaCards = [], qaDetail = false, qaCategory = '';
+    var qaBrowseScroll = 0, qaDetailListScroll = 0;
     var qaScroll = 0, qaLayoutChanged = false;
     if (api.getQA) {
       try { qaCards = api.getQA() || []; } catch (error) { qaCards = []; }
@@ -145,7 +167,7 @@
     qaCards = qaCards.map(function (card, index) {
       function plain(value) { return typeof value === 'string' ? value : ''; }
       return {id: plain(card.id) || String(index), question: plain(card.question), questionEN: plain(card.questionEN),
-        answer: plain(card.answer), notes: plain(card.notes), keywords: plain(card.keywords),
+        answer: plain(card.answer), notes: plain(card.notes), keywords: plain(card.keywords), category: plain(card.category).trim() || '기타',
         pages: Array.isArray(card.pages) ? card.pages.filter(function (page) { return Number.isInteger(page) && page > 0; }) : []};
     });
     var scrollPositions = {};
@@ -248,7 +270,29 @@
       label.textContent = data.title; sizePreview(frame);
     }
     function focusReadingPane() {
-      (qaMode ? el('qa-answer-panel') : notes).focus({preventScroll: true});
+      (qaMode ? (qaDetail ? el('qa-answer-panel') : el('qa-search')) : notes).focus({preventScroll: true});
+    }
+    function setQADetail(show, moveFocus) {
+      show = !!show && !!qaSelected;
+      if (qaDetail !== show) {
+        if (show) qaBrowseScroll = el('qa-list').scrollTop;
+        else qaDetailListScroll = el('qa-list').scrollTop;
+        qaDetail = show;
+        el('qa-panel').classList.toggle('qa-detail', show);
+        el('qa-answer-panel').hidden = !show;
+        el('qa-back').hidden = !show;
+        el('qa-hint').textContent = show ? 'Q: 대본 · Esc: 질문 목록' : 'Q: 전환 · Esc: 대본';
+        el('qa-list').scrollTop = show ? qaDetailListScroll : qaBrowseScroll;
+      }
+      if (moveFocus) {
+        if (show) el('qa-answer-panel').focus({preventScroll: true});
+        else {
+          var selected = [].find.call(el('qa-list').querySelectorAll('button'), function (button) {
+            return qaSelected && button.dataset.qaId === qaSelected.id;
+          });
+          (selected || el('qa-search')).focus({preventScroll: true});
+        }
+      }
     }
     function renderQAAnswer(card) {
       qaSelected = card;
@@ -263,36 +307,79 @@
       el('qa-answer-panel').scrollTop = 0;
       qaScroll = 0;
     }
-    function renderQAList() {
+    function renderQACategories(matches) {
+      var categories = [];
+      qaCards.forEach(function (card) { if (categories.indexOf(card.category) < 0) categories.push(card.category); });
+      var fragment = doc.createDocumentFragment();
+      [''].concat(categories).forEach(function (category) {
+        var button = doc.createElement('button');
+        button.type = 'button'; button.dataset.qaCategory = category;
+        var count = category ? matches.filter(function (card) { return card.category === category; }).length : matches.length;
+        button.textContent = (category || '전체') + ' ' + count;
+        button.setAttribute('aria-pressed', String(category === qaCategory));
+        button.onclick = function () {
+          if (!connected()) return;
+          qaCategory = category; setQADetail(false, false); renderQAList(true);
+          [].find.call(el('qa-categories').querySelectorAll('button'), function (next) {
+            return next.dataset.qaCategory === category;
+          }).focus({preventScroll: true});
+        };
+        fragment.appendChild(button);
+      });
+      el('qa-categories').replaceChildren(fragment);
+    }
+    function renderQAList(resetScroll) {
+      var previousScroll = resetScroll ? 0 : el('qa-list').scrollTop;
       var query = el('qa-search').value.toLocaleLowerCase().trim().split(/\s+/).filter(Boolean);
       var page = current ? current.index + 1 : 0;
-      var found = qaCards.filter(function (card) {
-        var text = [card.question, card.questionEN, card.answer, card.notes, card.keywords].join(' ').toLocaleLowerCase();
+      var matches = qaCards.filter(function (card) {
+        var text = [card.question, card.questionEN, card.answer, card.notes, card.keywords, card.category].join(' ').toLocaleLowerCase();
         return (!el('qa-current-only').checked || !card.pages.length || card.pages.indexOf(page) >= 0) &&
           query.every(function (term) { return text.indexOf(term) >= 0; });
       });
+      var found = matches.filter(function (card) { return !qaCategory || card.category === qaCategory; });
       var fragment = doc.createDocumentFragment();
+      var groups = [];
       found.forEach(function (card) {
-        var item = doc.createElement('li'), button = doc.createElement('button');
-        button.type = 'button'; button.dataset.qaId = card.id;
-        button.textContent = card.question || card.questionEN;
-        button.title = card.questionEN;
-        button.setAttribute('aria-pressed', String(card === qaSelected));
-        button.onclick = function (event) {
-          if (!connected()) return;
-          renderQAAnswer(card);
-          // Update selection without rebuilding the list or losing keyboard focus.
-          [].forEach.call(el('qa-list').querySelectorAll('button'), function (other) {
-            other.setAttribute('aria-pressed', String(other === button));
+        var group = groups.find(function (candidate) { return candidate.category === card.category; });
+        if (!group) { group = {category: card.category, cards: []}; groups.push(group); }
+        group.cards.push(card);
+      });
+      groups.forEach(function (group) {
+        // Short groups keep the overview balanced and let several topics fit on screen.
+        var chunkSize = Math.ceil(group.cards.length / Math.ceil(group.cards.length / 6));
+        for (var offset = 0; offset < group.cards.length; offset += chunkSize) {
+          var section = doc.createElement('li'), heading = doc.createElement('h3'), list = doc.createElement('ul');
+          section.className = 'qa-group';
+          heading.textContent = group.category + (offset ? ' · 계속' : '');
+          section.appendChild(heading); section.appendChild(list);
+          group.cards.slice(offset, offset + chunkSize).forEach(function (card) {
+            var item = doc.createElement('li'), button = doc.createElement('button');
+            button.type = 'button'; button.dataset.qaId = card.id;
+            button.textContent = card.question || card.questionEN;
+            button.title = card.questionEN;
+            button.setAttribute('aria-pressed', String(card === qaSelected));
+            button.onclick = function () {
+              if (!connected()) return;
+              renderQAAnswer(card);
+              // Keep the same list nodes so keyboard focus and scroll remain stable.
+              [].forEach.call(el('qa-list').querySelectorAll('button'), function (other) {
+                other.setAttribute('aria-pressed', String(other === button));
+              });
+              setQADetail(true, true);
+              if (win.innerWidth > 800) button.scrollIntoView({block: 'nearest'});
+            };
+            item.appendChild(button); list.appendChild(item);
           });
-          if (event.detail > 0) focusReadingPane();
-        };
-        item.appendChild(button); fragment.appendChild(item);
+          fragment.appendChild(section);
+        }
       });
       el('qa-list').replaceChildren(fragment);
+      el('qa-list').scrollTop = previousScroll;
+      renderQACategories(matches);
       el('qa-count').textContent = found.length + ' / ' + qaCards.length + '개 질문';
       el('qa-empty').hidden = !!found.length;
-      el('qa-empty').textContent = qaCards.length ? '검색 결과가 없습니다. 검색어나 현재 장 필터를 바꿔 주세요.' : '등록된 Q&A가 없습니다.';
+      el('qa-empty').textContent = qaCards.length ? '검색 결과가 없습니다. 검색어, 분류 또는 현재 장 필터를 바꿔 주세요.' : '등록된 Q&A가 없습니다.';
       // Deliberately keep the selected answer when a search or slide change
       // filters its card out. Only choosing another question changes the answer.
     }
@@ -305,16 +392,26 @@
             if (range > 0) scrollRatios[current.index] = notes.scrollTop / range;
           }
           qaLayoutChanged = false;
-        } else qaScroll = el('qa-answer-panel').scrollTop;
+        } else {
+          qaScroll = el('qa-answer-panel').scrollTop;
+          if (qaDetail) qaDetailListScroll = el('qa-list').scrollTop;
+          else qaBrowseScroll = el('qa-list').scrollTop;
+        }
         qaMode = showQA;
+        layout.classList.toggle('qa-mode', qaMode);
+        doc.body.classList.toggle('qa-active', qaMode);
         notes.hidden = qaMode; el('qa-panel').hidden = !qaMode;
+        el('qa-slide-context').hidden = !qaMode;
+        el('reading-toggle').hidden = qaMode;
         el('notes-tab').setAttribute('aria-selected', String(!qaMode));
         el('qa-tab').setAttribute('aria-selected', String(qaMode));
         el('notes-tab').tabIndex = qaMode ? -1 : 0;
         el('qa-tab').tabIndex = qaMode ? 0 : -1;
         if (qaMode) {
           renderQAList(); el('qa-answer-panel').scrollTop = qaScroll;
+          el('qa-list').scrollTop = qaDetail ? qaDetailListScroll : qaBrowseScroll;
         } else if (current) {
+          resize();
           notes.scrollTop = qaLayoutChanged ? (scrollRatios[current.index] || 0) * (notes.scrollHeight - notes.clientHeight) : (scrollPositions[current.index] || 0);
         }
       }
@@ -339,6 +436,7 @@
       }
       current = state;
       el('slide-count').textContent = (state.index + 1) + ' / ' + state.count;
+      el('qa-slide-context').textContent = '청중 화면 ' + (state.index + 1) + ' / ' + state.count + ' · ' + state.title;
       el('note-title').textContent = state.title;
       el('prev').disabled = state.index <= 0;
       el('next').disabled = state.index >= state.count - 1;
@@ -376,8 +474,9 @@
     }
     el('notes-tab').onclick = function (event) { if (connected()) setPanel(false, event.detail > 0); };
     el('qa-tab').onclick = function (event) { if (connected()) setPanel(true, event.detail > 0); };
-    el('qa-search').oninput = function () { if (connected()) renderQAList(); };
-    el('qa-current-only').onchange = function () { if (connected()) renderQAList(); };
+    el('qa-search').oninput = function () { if (connected()) { setQADetail(false, false); renderQAList(true); } };
+    el('qa-current-only').onchange = function () { if (connected()) { setQADetail(false, false); renderQAList(true); } };
+    el('qa-back').onclick = function () { if (connected()) setQADetail(false, true); };
     el('prev').onclick = function () { action(api.prev); };
     el('next').onclick = function () { action(api.next); };
     function jumpToSlide() {
@@ -413,7 +512,12 @@
       var target = event.target;
       if (!connected()) return;
       var key = event.key.toLowerCase();
-      if (qaMode && key === 'escape') { event.preventDefault(); setPanel(false, true); return; }
+      if (qaMode && key === 'escape') {
+        event.preventDefault();
+        if (qaDetail) setQADetail(false, true);
+        else setPanel(false, true);
+        return;
+      }
       if (target && (target.isContentEditable || (target.closest && target.closest('input, textarea, select')))) return;
       if (target && target.closest && target.closest('.notes-tabs')) {
         if (['arrowleft', 'arrowright', 'home', 'end'].indexOf(key) >= 0) {
@@ -439,6 +543,16 @@
       if (qaMode && target && target.closest && target.closest('#qa-answer-panel') &&
           ['arrowup', 'arrowdown', 'pageup', 'pagedown', 'home', 'end', ' '].indexOf(key) >= 0) return;
       if (target && target.closest && target.closest('button') && (event.key === ' ' || event.key === 'Enter')) return;
+      // Q&A navigation keys must never advance the audience slide. Slide changes
+      // remain available through the explicit footer controls.
+      if (qaMode && ['arrowleft', 'arrowright', 'arrowup', 'arrowdown', 'pageup', 'pagedown', 'home', 'end', 'backspace', ' ', 'enter'].indexOf(key) >= 0) {
+        event.preventDefault();
+        if (!qaDetail) {
+          var first = el('qa-list').querySelector('button');
+          if (first) first.focus();
+        }
+        return;
+      }
       var handled = true;
       if (['arrowright', 'arrowdown', 'pagedown', ' ', 'enter'].indexOf(key) >= 0) action(api.next);
       else if (['arrowleft', 'arrowup', 'pageup', 'backspace'].indexOf(key) >= 0) action(api.prev);
@@ -483,7 +597,7 @@
     if (api.attachAnimationWindow) detachAnimationWindow = api.attachAnimationWindow(win);
     unsubscribe = api.subscribe(render);
     render(api.getState()); paintTimer();
-    renderQAAnswer(qaCards[0] || null); renderQAList();
+    renderQAAnswer(null); renderQAList();
     interval = win.setInterval(function () { if (connected()) paintTimer(); }, 250);
     notes.focus();
     return cleanup;

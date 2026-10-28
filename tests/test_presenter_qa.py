@@ -2,7 +2,7 @@
 """Private Q&A lookup in real offline Chromium; no domain-specific content.
 
 The fixture checks audience/PDF exclusion, plain-text answer rendering, and
-keyboard/scroll behavior while looking up answers beside the live slide preview.
+keyboard/scroll behavior in the dedicated Q&A browsing view.
 """
 import argparse
 import base64
@@ -53,7 +53,8 @@ def make_fixture(folder, with_qa=True):
         <p data-qa-answer>PRIVATE_QA_LITERAL LITERAL_TEXT<script>window.qaInjected=2</script><style>.unwanted{display:block}</style></p>
         <p data-qa-note>메모 &lt;b&gt;그대로&lt;/b&gt;</p>
       </article>
-    </template>'''.replace('LITERAL_TEXT', html.escape(LITERAL)) if with_qa else ''
+    </template>'''.replace('LITERAL_TEXT', html.escape(LITERAL) + ' ' +
+        ' '.join('Reading practice sentence %d keeps this answer long enough to test scrolling.' % i for i in range(36))) if with_qa else ''
     direct = '''<aside class="speaker-qa"><article data-qa-card id="direct" data-pages="3">
       <h3 data-qa-question>마지막 질문</h3><p data-qa-question-en>Any final comments?</p>
       <p data-qa-answer>PRIVATE_QA_DIRECT Thank you for the question.</p>
@@ -140,6 +141,7 @@ def run(out):
             click(p, '#qa-tab')
             assert evaluate(p, 'document.querySelector("#qa-tab").getAttribute("aria-selected")==="true"')
             assert len(list_text(p)) == 5
+            assert evaluate(p, 'document.querySelector("#qa-answer-panel").hidden')
             click(p, '#notes-tab')
             assert abs(evaluate(p, 'document.querySelector("#notes").scrollTop') - before_scroll) < 2
             click(p, '#qa-tab')
@@ -235,10 +237,12 @@ def run(out):
             assert evaluate(c, 'SUVPresent.currentIndex()') == 1
             assert evaluate(p, '(()=>{const a=document.querySelector("#qa-answer-panel").getBoundingClientRect(),n=document.querySelector("#qa-note").getBoundingClientRect();return n.top>=a.top && n.bottom<=a.bottom})()')
             p.screenshot(out / 'qa_800_scrolled.png')
-            click(p, '#qa-search')
+            p.key('Escape')
+            assert evaluate(p, 'document.querySelector("#qa-answer-panel").hidden')
+            assert evaluate(p, 'document.querySelector("#qa-tab").getAttribute("aria-selected")==="true"')
             p.key('Escape')
             assert evaluate(p, 'document.querySelector("#notes-tab").getAttribute("aria-selected")==="true"')
-            passed('A long answer and its final note can be scrolled into view without moving the audience; Escape returns to the script')
+            passed('A long answer and its final note can be scrolled without moving the audience; Escape returns through the question overview to the script')
             errors = [e for e in c.events + p.events if e.get('method') == 'Runtime.exceptionThrown']
             assert not errors, errors
             p.ws.close()
