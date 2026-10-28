@@ -19,6 +19,8 @@ python3 tests/test_video_poster.py --output /tmp/suvlab-video-poster
 python3 tests/test_presenter_displays.py --output /tmp/suvlab-presenter-displays
 # 발표자 전용 Q&A 검색·선택·비공개 표시 검사
 python3 tests/test_presenter_qa.py --output /tmp/suvlab-presenter-qa
+# Q&A 목록·답변에서도 현재 슬라이드와 움직이는 캔버스가 보이는지 확인
+python3 tests/test_presenter_qa_preview.py --output /tmp/suvlab-presenter-qa-preview
 # 많은 질문을 훑는 전체 목록·분류·답변 전환 검사
 python3 tests/test_presenter_qa_browse.py --output /tmp/suvlab-presenter-qa-browse
 ```

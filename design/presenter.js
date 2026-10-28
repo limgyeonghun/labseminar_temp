@@ -105,14 +105,25 @@
     '@media (max-width: 900px) { header { display: flex; flex-wrap: wrap; } .script-tools { margin-left: auto; } #reading-toggle, .help { display: none; } main, main.reading { grid-template-columns: minmax(0, 9fr) minmax(0, 16fr); grid-template-rows: auto auto minmax(0, 1fr); grid-template-areas: "current notes" "next notes" ". notes"; gap: 10px 12px; padding: 10px 12px; } .next-pane { grid-template-columns: minmax(0, 1fr); gap: 6px; } #notes { padding: 16px 18px 24px; } }',
     '@media (max-width: 620px) { main, main.reading { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); grid-template-areas: "notes"; } .current-pane, .next-pane { display: none; } #notes { padding: 14px; } }',
     '@media (max-height: 760px) { .qa-tools { padding-top: 8px; } #qa-answer-panel { padding: 12px 16px 20px; } }',
-    // Q&A owns the available space; the audience and source playback are unchanged.
-    'main.qa-mode, main.qa-mode.reading { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); grid-template-areas: "notes"; }',
-    'main.qa-mode .current-pane, main.qa-mode .next-pane, main.qa-mode .help { display: none; }',
+    // Keep the existing live iframe beside the Q&A tools, with the question grid
+    // across the full width below. display:contents changes layout, not iframe ownership.
+    'main.qa-mode, main.qa-mode.reading { grid-template-columns: clamp(220px, 25vw, 340px) minmax(0, 1fr); grid-template-rows: auto auto auto minmax(0, 1fr); grid-template-areas: "current qa-tabs" "current qa-tools" "qa-empty qa-empty" "qa-body qa-body"; gap: 8px 16px; }',
+    'main.qa-mode .current-pane { display: block; align-self: start; }',
+    'main.qa-mode .current-pane .preview-heading { margin-bottom: 5px; }',
+    'main.qa-mode .slide-caption { margin-top: 5px; gap: 8px; }',
+    'main.qa-mode #slide-count { font-size: 12px; }',
+    'main.qa-mode #note-title { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }',
+    'main.qa-mode .next-pane, main.qa-mode .help { display: none; }',
+    'main.qa-mode .notes-pane, main.qa-mode #qa-panel:not([hidden]) { display: contents; }',
+    'main.qa-mode .notes-tabs { grid-area: qa-tabs; align-self: start; background: #111827; border: 1px solid #1f2937; border-radius: 8px; }',
+    'main.qa-mode .qa-tools { grid-area: qa-tools; align-self: start; min-width: 0; background: #111827; border: 1px solid #1f2937; border-radius: 8px; }',
+    'main.qa-mode #qa-empty { grid-area: qa-empty; }',
+    'main.qa-mode .qa-workspace { grid-area: qa-body; background: #111827; border: 1px solid #1f2937; border-radius: 10px; }',
     '@media (min-width: 1450px) { #qa-panel:not(.qa-detail) #qa-list { grid-template-columns: repeat(3, minmax(0, 1fr)); } }',
-    '@media (max-width: 900px) { body.qa-active header { flex-wrap: nowrap; gap: 10px; } body.qa-active #connection, body.qa-active .clock-label, body.qa-active .tool-label, body.qa-active #font-size { display: none; } body.qa-active .clock { margin-left: auto; flex-wrap: nowrap; } body.qa-active .script-tools { flex-wrap: nowrap; margin-left: 0; } body.qa-active footer #display-setup, body.qa-active footer #media-toggle, body.qa-active footer #media-reset { display: none; } }',
+    '@media (max-width: 900px) { main.qa-mode, main.qa-mode.reading { grid-template-columns: clamp(160px, 28vw, 240px) minmax(0, 1fr); gap: 6px 12px; } body.qa-active header { flex-wrap: nowrap; gap: 10px; } body.qa-active #connection, body.qa-active .clock-label, body.qa-active .tool-label, body.qa-active #font-size { display: none; } body.qa-active .clock { margin-left: auto; flex-wrap: nowrap; } body.qa-active .script-tools { flex-wrap: nowrap; margin-left: 0; } body.qa-active footer #display-setup, body.qa-active footer #media-toggle, body.qa-active footer #media-reset { display: none; } }',
     '@media (max-width: 800px) { .qa-detail .qa-workspace { grid-template-columns: minmax(0, 1fr); } .qa-detail #qa-list { display: none; } #qa-answer-panel { border-left: 0; } .qa-tools { padding: 8px 12px; } #qa-list { padding: 10px 12px 14px; gap: 12px; } #qa-list button { font-size: 14px; line-height: 1.35; padding: 5px 9px; } #qa-slide-context { display: none; } }',
     '@media (max-width: 620px) { body.qa-active #timer-toggle, body.qa-active #timer-reset { display: none; } body.qa-active .script-tools { margin-left: auto; } }',
-    '@media (max-width: 620px) { #qa-list { grid-template-columns: minmax(0, 1fr); } .notes-tabs .tab-hint { font-size: 11px; } #qa-categories { max-height: 74px; overflow-y: auto; } #qa-back { padding: 7px 8px; } }'
+    '@media (max-width: 620px) { #qa-list { grid-template-columns: minmax(0, 1fr); } .notes-tabs .tab-hint { font-size: 11px; } main.qa-mode .notes-tabs .tab-hint { display: none; } #qa-categories { max-height: 74px; overflow-y: auto; } #qa-back { padding: 7px 8px; } }'
   ].join('\n');
 
   function mount(win, api) {
@@ -408,6 +419,7 @@
         el('notes-tab').tabIndex = qaMode ? -1 : 0;
         el('qa-tab').tabIndex = qaMode ? 0 : -1;
         if (qaMode) {
+          resize();
           renderQAList(); el('qa-answer-panel').scrollTop = qaScroll;
           el('qa-list').scrollTop = qaDetail ? qaDetailListScroll : qaBrowseScroll;
         } else if (current) {
